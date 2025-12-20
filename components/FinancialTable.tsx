@@ -15,6 +15,7 @@ interface FinancialTableProps {
   currentYear?: number; // 현재 년도 (BS 기말 컬럼 헤더에 사용)
   monthsCollapsed?: boolean; // 월별 데이터 접기 상태 (외부 제어)
   onMonthsToggle?: () => void; // 월별 데이터 토글 핸들러
+  compactLayout?: boolean; // CF 전용 컴팩트 레이아웃 활성화
 }
 
 export default function FinancialTable({ 
@@ -28,6 +29,7 @@ export default function FinancialTable({
   currentYear,
   monthsCollapsed: externalMonthsCollapsed,
   onMonthsToggle,
+  compactLayout = false,
 }: FinancialTableProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [internalMonthsCollapsed, setInternalMonthsCollapsed] = useState<boolean>(false);
@@ -281,8 +283,17 @@ export default function FinancialTable({
         )}
       </div>
 
-      <div className="relative overflow-auto" style={{ maxHeight: 'calc(100vh - 250px)' }}>
-        <table className="w-full border-collapse text-sm">
+      <div 
+        className={`relative overflow-auto ${compactLayout ? 'flex justify-center' : ''}`} 
+        style={{ maxHeight: 'calc(100vh - 250px)' }}
+      >
+        <table 
+          className={`border-collapse text-sm ${compactLayout ? '' : 'w-full'}`}
+          style={compactLayout ? { 
+            tableLayout: 'fixed',
+            width: 'fit-content'
+          } : undefined}
+        >
           <thead className="sticky top-0 z-10 bg-navy text-white">
             <tr>
               {displayColumns.map((col, index) => {
@@ -308,6 +319,17 @@ export default function FinancialTable({
                 const isBaseMonthCol = isCashFlow && isMonthCol && col === `${baseMonth}월`;
                 const isNonBaseMonthCol = isCashFlow && isMonthCol && col !== `${baseMonth}월`;
                 
+                // CF 컴팩트 레이아웃: 컬럼별 고정 폭 설정
+                const getColumnWidth = () => {
+                  if (!compactLayout) return undefined;
+                  if (isAccountCol) return { width: '280px', minWidth: '280px' };
+                  if (col === '2024년' || col === '2025년(합계)' || col === 'YoY') {
+                    return { width: '160px', minWidth: '160px' };
+                  }
+                  if (isMonthCol) return { width: '120px', minWidth: '120px' };
+                  return undefined;
+                };
+                
                 return (
                   <th
                     key={index}
@@ -318,6 +340,7 @@ export default function FinancialTable({
                       ${!isNonBaseMonthCol && isComparisonCol ? 'bg-navy-light' : ''}
                       ${!isNonBaseMonthCol && !isComparisonCol && !isAccountCol ? 'bg-navy' : ''}
                     `}
+                    style={getColumnWidth()}
                   >
                     {col}
                   </th>
@@ -352,12 +375,17 @@ export default function FinancialTable({
                     ${!isBalanceCheck && (!row.isHighlight || row.isHighlight === 'none') ? 'bg-white' : ''}
                     ${row.isGroup ? 'cursor-pointer' : ''}
                     ${row.isBold ? 'font-semibold' : ''}
+                    ${compactLayout ? 'overflow-hidden text-ellipsis' : ''}
                   `}
-                  style={{ paddingLeft: `${8 + row.level * 16}px` }}
+                  style={compactLayout ? {
+                    paddingLeft: `${8 + row.level * 16}px`,
+                    maxWidth: '280px',
+                    whiteSpace: 'nowrap'
+                  } : { paddingLeft: `${8 + row.level * 16}px` }}
                   onClick={() => row.isGroup && toggleCollapse(row.account)}
                 >
                   <div className="flex items-center gap-2">
-                    <span>
+                    <span className={compactLayout ? 'overflow-hidden text-ellipsis' : ''}>
                       {isBalanceCheck ? (
                         isBalanceOk ? 'Balance Check ✓ 정합' : 'Balance Check (차대변 불일치)'
                       ) : (
@@ -365,7 +393,7 @@ export default function FinancialTable({
                       )}
                     </span>
                     {row.isGroup && (
-                      <span className="text-gray-500">
+                      <span className="text-gray-500 flex-shrink-0">
                         {collapsed.has(row.account) ? '▶' : '▼'}
                       </span>
                     )}

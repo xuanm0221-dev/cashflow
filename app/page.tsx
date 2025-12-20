@@ -215,6 +215,7 @@ export default function Home() {
                   columns={cfColumns} 
                   showTotal 
                   isCashFlow={true}
+                  compactLayout={true}
                   baseMonth={cfBaseMonth}
                   monthsCollapsed={cfMonthsCollapsed}
                   onMonthsToggle={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
