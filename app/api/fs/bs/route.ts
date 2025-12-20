@@ -18,14 +18,22 @@ function generateWCRemarks(
     return row?.comparisons?.annualYoY || 0;
   };
   
-  // 변동 포맷팅 (YoY 값은 이미 차이가 계산되어 있음)
-  const formatChange = (label: string, yoyValue: number) => {
-    const diffM = Math.round(yoyValue / 1000); // K → M 단위로 변환
+  // 변동 포맷팅 (YoY 값은 원본 단위이므로 M(백만) 단위로 변환)
+  const formatChange = (label: string, yoyValueOriginal: number) => {
+    // 원본 → M 단위로 변환 (1,000,000으로 나누기)
+    const valueInM = Math.round(yoyValueOriginal / 1000000);
     
-    if (Math.abs(diffM) < 1) return null; // 1M 미만은 무시
+    // 디버깅용 로그
+    console.log(`[WC 비고] ${label}: ${yoyValueOriginal} → ${valueInM}M`);
     
-    const sign = diffM > 0 ? '+' : '△';
-    const absValue = Math.abs(diffM);
+    // 1M 미만은 무시
+    if (Math.abs(valueInM) < 1) return null;
+    
+    // 부호 결정
+    const sign = valueInM > 0 ? '+' : '△';
+    const absValue = Math.abs(valueInM);
+    
+    // 최종 포맷: "라벨 +123M" 또는 "라벨 △123M"
     return `${label} ${sign}${absValue}M`;
   };
   
