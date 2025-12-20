@@ -32,7 +32,7 @@ export default function FinancialTable({
   compactLayout = false,
 }: FinancialTableProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [internalMonthsCollapsed, setInternalMonthsCollapsed] = useState<boolean>(false);
+  const [internalMonthsCollapsed, setInternalMonthsCollapsed] = useState<boolean>(true);
   const [allRowsCollapsed, setAllRowsCollapsed] = useState<boolean>(true);
   
   // 외부에서 monthsCollapsed를 제어하는 경우와 내부에서 제어하는 경우 모두 지원

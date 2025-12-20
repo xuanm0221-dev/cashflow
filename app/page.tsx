@@ -15,7 +15,7 @@ export default function Home() {
   const [bsYear, setBsYear] = useState<number>(2025);
   const [baseMonth, setBaseMonth] = useState<number>(11); // 기준월 (기본 11월)
   const [cfBaseMonth, setCfBaseMonth] = useState<number>(11); // 현금흐름표 기준월
-  const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(false); // 재무상태표 & 운전자본 월별 접기
+  const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(true); // 재무상태표 & 운전자본 월별 접기
   const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(false); // 현금흐름표 월별 접기
   const [plData, setPlData] = useState<TableRow[] | null>(null);
   const [bsData, setBsData] = useState<TableRow[] | null>(null);
