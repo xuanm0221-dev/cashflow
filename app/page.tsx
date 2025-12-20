@@ -7,7 +7,8 @@ import BaseMonthSelector from '@/components/BaseMonthSelector';
 import FinancialTable from '@/components/FinancialTable';
 import CreditStatus from '@/components/CreditStatus';
 import BSAnalysis from '@/components/BSAnalysis';
-import { TableRow, CreditData, TabType } from '@/lib/types';
+import ExecutiveSummary from '@/components/ExecutiveSummary';
+import { TableRow, CreditData, TabType, ExecutiveSummaryData } from '@/lib/types';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -17,6 +18,7 @@ export default function Home() {
   const [cfBaseMonth, setCfBaseMonth] = useState<number>(11); // 현금흐름표 기준월
   const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(true); // 재무상태표 & 운전자본 월별 접기
   const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(false); // 현금흐름표 월별 접기
+  const [summaryData, setSummaryData] = useState<ExecutiveSummaryData | null>(null);
   const [plData, setPlData] = useState<TableRow[] | null>(null);
   const [bsData, setBsData] = useState<TableRow[] | null>(null);
   const [previousBsData, setPreviousBsData] = useState<TableRow[] | null>(null);
@@ -31,8 +33,8 @@ export default function Home() {
   const [wcRemarks, setWcRemarks] = useState<Map<string, string>>(new Map());
   const [wcRemarksAuto, setWcRemarksAuto] = useState<{ [key: string]: string } | null>(null);
 
-  const tabs = ['손익계산서', '재무상태표', '현금흐름표', '여신사용현황'];
-  const tabTypes: TabType[] = ['PL', 'BS', 'CF', 'CREDIT'];
+  const tabs = ['경영요약', '손익계산서', '재무상태표', '현금흐름표', '여신사용현황'];
+  const tabTypes: TabType[] = ['SUMMARY', 'PL', 'BS', 'CF', 'CREDIT'];
 
   // 데이터 로딩
   const loadData = async (type: TabType, year?: number, month?: number) => {
@@ -100,11 +102,37 @@ export default function Home() {
     }
   };
 
+  // 경영요약 데이터 로드
+  const loadSummaryData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/fs/summary');
+      if (!response.ok) {
+        throw new Error('경영요약 데이터를 불러올 수 없습니다.');
+      }
+      const result = await response.json();
+      setSummaryData(result);
+    } catch (err) {
+      console.error(err);
+      setError('경영요약 데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 경영요약 초기값으로 리셋
+  const resetSummaryData = () => {
+    setSummaryData(null);
+    loadSummaryData();
+  };
+
   // 탭 변경 시 데이터 로드
   useEffect(() => {
     const currentType = tabTypes[activeTab];
     
-    if (currentType === 'PL' && !plData) {
+    if (currentType === 'SUMMARY' && !summaryData) {
+      loadSummaryData();
+    } else if (currentType === 'PL' && !plData) {
       loadData('PL', plYear, baseMonth);
     } else if (currentType === 'BS' && !bsData) {
       loadData('BS', bsYear);
@@ -148,8 +176,17 @@ export default function Home() {
 
       {/* 내용 */}
       <div className="p-0">
-        {/* PL - 손익계산서 */}
+        {/* 경영요약 */}
         {activeTab === 0 && (
+          <ExecutiveSummary 
+            data={summaryData}
+            onChange={setSummaryData}
+            onReset={resetSummaryData}
+          />
+        )}
+
+        {/* PL - 손익계산서 */}
+        {activeTab === 1 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300">
               <div className="flex items-center gap-4 px-6 py-3">
@@ -175,7 +212,7 @@ export default function Home() {
         )}
 
         {/* BS - 재무상태표 */}
-        {activeTab === 1 && (
+        {activeTab === 2 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300">
               <div className="flex items-center gap-4 px-6 py-3">
@@ -247,7 +284,7 @@ export default function Home() {
         )}
 
         {/* CF - 현금흐름표 */}
-        {activeTab === 2 && (
+        {activeTab === 3 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300">
               <div className="flex items-center gap-4 px-6 py-3">
@@ -281,7 +318,7 @@ export default function Home() {
         )}
 
         {/* 여신사용현황 */}
-        {activeTab === 3 && (
+        {activeTab === 4 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3">
               <span className="text-sm font-medium text-gray-700">2025년 11월말 기준</span>
