@@ -15,6 +15,7 @@ export default function Home() {
   const [bsYear, setBsYear] = useState<number>(2025);
   const [baseMonth, setBaseMonth] = useState<number>(11); // 기준월 (기본 11월)
   const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(false); // 재무상태표 & 운전자본 월별 접기
+  const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(false); // 현금흐름표 월별 접기
   const [plData, setPlData] = useState<TableRow[] | null>(null);
   const [bsData, setBsData] = useState<TableRow[] | null>(null);
   const [workingCapitalData, setWorkingCapitalData] = useState<TableRow[] | null>(null);
@@ -192,14 +193,29 @@ export default function Home() {
         {/* CF - 현금흐름표 */}
         {activeTab === 2 && (
           <div>
-            <div className="bg-gray-100 border-b border-gray-300 px-6 py-3">
-              <span className="text-sm font-medium text-gray-700">2025년</span>
+            <div className="bg-gray-100 border-b border-gray-300">
+              <div className="flex items-center gap-4 px-6 py-3">
+                <span className="text-sm font-medium text-gray-700">2025년</span>
+                <button
+                  onClick={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
+                  className="px-4 py-2 text-sm font-medium rounded bg-navy text-white hover:bg-navy-light transition-colors"
+                >
+                  {cfMonthsCollapsed ? '월별 데이터 펼치기 ▶' : '월별 데이터 접기 ◀'}
+                </button>
+              </div>
             </div>
             {loading && <div className="p-6 text-center">로딩 중...</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {cfData && !loading && (
               <div className="p-6">
-                <FinancialTable data={cfData} columns={cfColumns} showTotal />
+                <FinancialTable 
+                  data={cfData} 
+                  columns={cfColumns} 
+                  showTotal 
+                  isCashFlow={true}
+                  monthsCollapsed={cfMonthsCollapsed}
+                  onMonthsToggle={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
+                />
               </div>
             )}
           </div>

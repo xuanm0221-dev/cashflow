@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
-import { readCSV } from '@/lib/csv';
+import { readCFCSV } from '@/lib/csv';
 import { calculateCF } from '@/lib/fs-mapping';
 
 export async function GET(request: NextRequest) {
@@ -8,8 +8,8 @@ export async function GET(request: NextRequest) {
     const year = 2025; // CF는 2025만 지원
     
     const filePath = path.join(process.cwd(), 'CF', `${year}.csv`);
-    const data = await readCSV(filePath, year);
-    const tableRows = calculateCF(data);
+    const { data, year2024Values } = await readCFCSV(filePath, year);
+    const tableRows = calculateCF(data, year2024Values);
     
     return NextResponse.json({
       year,

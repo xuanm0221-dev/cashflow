@@ -11,6 +11,7 @@ interface FinancialTableProps {
   showComparisons?: boolean; // PL 2025년 또는 BS 2025/2026에서 비교 컬럼 표시 여부
   baseMonth?: number; // 기준월 (1~12)
   isBalanceSheet?: boolean; // 재무상태표 여부
+  isCashFlow?: boolean; // 현금흐름표 여부 (2024년 컬럼 표시)
   currentYear?: number; // 현재 년도 (BS 기말 컬럼 헤더에 사용)
   monthsCollapsed?: boolean; // 월별 데이터 접기 상태 (외부 제어)
   onMonthsToggle?: () => void; // 월별 데이터 토글 핸들러
@@ -23,6 +24,7 @@ export default function FinancialTable({
   showComparisons = false,
   baseMonth = 11,
   isBalanceSheet = false,
+  isCashFlow = false,
   currentYear,
   monthsCollapsed: externalMonthsCollapsed,
   onMonthsToggle,
@@ -157,7 +159,25 @@ export default function FinancialTable({
   const displayColumns = useMemo(() => {
     const accountCol = [columns[0]]; // "계정과목"
     
-    if (showComparisons) {
+    if (isCashFlow) {
+      // 현금흐름표: 계정과목 | 2024년 | 1월~12월 | 2025년(합계)
+      if (monthsCollapsed) {
+        return [
+          ...accountCol,
+          '2024년',
+          '', // 빈 컬럼
+          '2025년(합계)',
+        ];
+      } else {
+        const monthCols = columns.slice(1, 13); // 1월~12월
+        return [
+          ...accountCol,
+          '2024년',
+          ...monthCols,
+          '2025년(합계)',
+        ];
+      }
+    } else if (showComparisons) {
       if (isBalanceSheet) {
         // 재무상태표
         if (currentYear === 2026) {
@@ -229,7 +249,7 @@ export default function FinancialTable({
       // 기본: 모든 컬럼
       return columns;
     }
-  }, [columns, showComparisons, monthsCollapsed, comparisonColumns, isBalanceSheet]);
+  }, [columns, showComparisons, monthsCollapsed, comparisonColumns, isBalanceSheet, isCashFlow]);
 
   return (
     <div>
@@ -343,8 +363,30 @@ export default function FinancialTable({
                   </div>
                 </td>
 
+                {/* CF: 2024년 값 */}
+                {isCashFlow && (
+                  <>
+                    <td
+                      className={`
+                        border border-gray-300 px-4 py-2 text-right
+                        ${getHighlightClass(row.isHighlight)}
+                        ${row.isBold ? 'font-semibold' : ''}
+                        ${isNegative(row.year2024Value ?? null) ? 'text-red-600' : ''}
+                      `}
+                    >
+                      {formatValue(row.year2024Value ?? null, row.format, false, !row.isCalculated)}
+                    </td>
+                    {/* 빈 컬럼 (2024년 뒤) */}
+                    {monthsCollapsed && <td className="bg-white border-0" style={{ minWidth: '16px', maxWidth: '16px', padding: 0 }}></td>}
+                  </>
+                )}
+
                 {/* 월별 값 (토글에 따라 표시/숨김) */}
                 {!monthsCollapsed && row.values.map((value, colIndex) => {
+                  // CF: 합계 컬럼(index 12)은 여기서 제외 (나중에 따로 렌더링)
+                  if (isCashFlow && colIndex === 12) {
+                    return null;
+                  }
                   // 2026년 재무상태표: 1~6월만 표시 (index 0~5)
                   if (isBalanceSheet && currentYear === 2026 && colIndex > 5) {
                     return null;
@@ -366,6 +408,20 @@ export default function FinancialTable({
                     </td>
                   );
                 })}
+
+                {/* CF: 합계 컬럼 (2025년) */}
+                {isCashFlow && (
+                  <td
+                    className={`
+                      border border-gray-300 px-4 py-2 text-right
+                      ${getHighlightClass(row.isHighlight)}
+                      ${row.isBold ? 'font-semibold' : ''}
+                      ${isNegative(row.values[12]) ? 'text-red-600' : ''}
+                    `}
+                  >
+                    {formatValue(row.values[12], row.format, false, !row.isCalculated)}
+                  </td>
+                )}
 
                 {/* 빈 컬럼들 및 비교 컬럼 (PL 2025년 또는 BS 2025/2026, 항상 표시) */}
                 {showComparisons && row.comparisons && (

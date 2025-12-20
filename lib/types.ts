@@ -18,6 +18,7 @@ export interface TableRow {
   children?: TableRow[];
   format?: 'number' | 'percent'; // 표시 형식
   comparisons?: ComparisonData; // 비교 데이터 (PL 2025년 전용)
+  year2024Value?: number | null; // CF용 2024년 값
 }
 
 // 비교 데이터 (PL 2025년 전용)

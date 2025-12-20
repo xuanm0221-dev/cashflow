@@ -676,10 +676,28 @@ export function calculateComparisonDataBS(
 }
 
 // ==================== CF (현금흐름표) ====================
-export function calculateCF(data: FinancialData[]): TableRow[] {
+export function calculateCF(data: FinancialData[], year2024Values: Map<string, number>): TableRow[] {
   const map = createMonthDataMap(data);
   
   const INITIAL_CASH = 140853827.859988;
+  
+  // 2024년 값 가져오기 헬퍼
+  const get2024Value = (account: string): number | null => {
+    return year2024Values.get(account) ?? null;
+  };
+  
+  const sum2024Values = (accounts: string[]): number | null => {
+    let sum = 0;
+    let hasValue = false;
+    for (const acc of accounts) {
+      const val = year2024Values.get(acc);
+      if (val !== undefined) {
+        sum += val;
+        hasValue = true;
+      }
+    }
+    return hasValue ? sum : null;
+  };
   
   // 매출수금
   const MLB = getAccountValues(map, 'MLB');
@@ -732,6 +750,18 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
   // 합계 계산 (12개월)
   const sumArray = (arr: number[]) => arr.reduce((sum, v) => sum + v, 0);
   
+  // 2024년 기초현금 계산 (기말현금과 동일하게 처리, 없으면 null)
+  const 기초현금2024 = get2024Value('기초현금');
+  const 영업활동2024 = sum2024Values(['MLB', 'KIDS', 'Discovery', 'Duvetica', 'Supra', '대리상선금', '대리상보증금', '정부보조금', '기타수익', '본사', '위탁생산', '본사선급금', '운영비']);
+  const 입금2024 = sum2024Values(['MLB', 'KIDS', 'Discovery', 'Duvetica', 'Supra', '대리상선금', '대리상보증금', '정부보조금', '기타수익']);
+  const 매출수금2024 = sum2024Values(['MLB', 'KIDS', 'Discovery', 'Duvetica', 'Supra']);
+  const 기타수익2024 = sum2024Values(['대리상선금', '대리상보증금', '정부보조금', '기타수익']);
+  const 출금2024 = sum2024Values(['본사', '위탁생산', '본사선급금', '운영비']);
+  const 상품대2024 = sum2024Values(['본사', '위탁생산']);
+  const 재무활동2024 = sum2024Values(['차입금입금', '차입금상환']);
+  const 투자활동2024 = sum2024Values(['자산성지출']);
+  const 기말현금2024 = get2024Value('기말현금');
+
   const rows: TableRow[] = [
     {
       account: '기초현금',
@@ -742,6 +772,7 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isHighlight: 'yellow',
       values: [...기초현금, null], // 합계는 null
       format: 'number',
+      year2024Value: 기초현금2024,
     },
     {
       account: '1. 영업활동',
@@ -752,6 +783,7 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isHighlight: 'sky',
       values: [...영업활동, sumArray(영업활동)],
       format: 'number',
+      year2024Value: 영업활동2024,
     },
     {
       account: '입금',
@@ -762,6 +794,7 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isHighlight: 'gray',
       values: [...입금, sumArray(입금)],
       format: 'number',
+      year2024Value: 입금2024,
     },
     {
       account: '매출수금',
@@ -771,12 +804,13 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isBold: true,
       values: [...매출수금, sumArray(매출수금)],
       format: 'number',
+      year2024Value: 매출수금2024,
     },
-    { account: 'MLB', level: 3, isGroup: false, isCalculated: false, values: [...MLB, sumArray(MLB)], format: 'number' },
-    { account: 'KIDS', level: 3, isGroup: false, isCalculated: false, values: [...KIDS, sumArray(KIDS)], format: 'number' },
-    { account: 'Discovery', level: 3, isGroup: false, isCalculated: false, values: [...Discovery, sumArray(Discovery)], format: 'number' },
-    { account: 'Duvetica', level: 3, isGroup: false, isCalculated: false, values: [...Duvetica, sumArray(Duvetica)], format: 'number' },
-    { account: 'Supra', level: 3, isGroup: false, isCalculated: false, values: [...Supra, sumArray(Supra)], format: 'number' },
+    { account: 'MLB', level: 3, isGroup: false, isCalculated: false, values: [...MLB, sumArray(MLB)], format: 'number', year2024Value: get2024Value('MLB') },
+    { account: 'KIDS', level: 3, isGroup: false, isCalculated: false, values: [...KIDS, sumArray(KIDS)], format: 'number', year2024Value: get2024Value('KIDS') },
+    { account: 'Discovery', level: 3, isGroup: false, isCalculated: false, values: [...Discovery, sumArray(Discovery)], format: 'number', year2024Value: get2024Value('Discovery') },
+    { account: 'Duvetica', level: 3, isGroup: false, isCalculated: false, values: [...Duvetica, sumArray(Duvetica)], format: 'number', year2024Value: get2024Value('Duvetica') },
+    { account: 'Supra', level: 3, isGroup: false, isCalculated: false, values: [...Supra, sumArray(Supra)], format: 'number', year2024Value: get2024Value('Supra') },
     {
       account: '기타수익',
       level: 2,
@@ -785,11 +819,12 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isBold: true,
       values: [...기타수익합계, sumArray(기타수익합계)],
       format: 'number',
+      year2024Value: 기타수익2024,
     },
-    { account: '대리상선금', level: 3, isGroup: false, isCalculated: false, values: [...대리상선금, sumArray(대리상선금)], format: 'number' },
-    { account: '대리상보증금', level: 3, isGroup: false, isCalculated: false, values: [...대리상보증금, sumArray(대리상보증금)], format: 'number' },
-    { account: '정부보조금', level: 3, isGroup: false, isCalculated: false, values: [...정부보조금, sumArray(정부보조금)], format: 'number' },
-    { account: '기타수익', level: 3, isGroup: false, isCalculated: false, values: [...기타수익, sumArray(기타수익)], format: 'number' },
+    { account: '대리상선금', level: 3, isGroup: false, isCalculated: false, values: [...대리상선금, sumArray(대리상선금)], format: 'number', year2024Value: get2024Value('대리상선금') },
+    { account: '대리상보증금', level: 3, isGroup: false, isCalculated: false, values: [...대리상보증금, sumArray(대리상보증금)], format: 'number', year2024Value: get2024Value('대리상보증금') },
+    { account: '정부보조금', level: 3, isGroup: false, isCalculated: false, values: [...정부보조금, sumArray(정부보조금)], format: 'number', year2024Value: get2024Value('정부보조금') },
+    { account: '기타수익', level: 3, isGroup: false, isCalculated: false, values: [...기타수익, sumArray(기타수익)], format: 'number', year2024Value: get2024Value('기타수익') },
     {
       account: '출금',
       level: 1,
@@ -799,6 +834,7 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isHighlight: 'gray',
       values: [...출금, sumArray(출금)],
       format: 'number',
+      year2024Value: 출금2024,
     },
     {
       account: '상품대',
@@ -808,11 +844,12 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isBold: true,
       values: [...상품대, sumArray(상품대)],
       format: 'number',
+      year2024Value: 상품대2024,
     },
-    { account: '본사', level: 3, isGroup: false, isCalculated: false, values: [...본사, sumArray(본사)], format: 'number' },
-    { account: '위탁생산', level: 3, isGroup: false, isCalculated: false, values: [...위탁생산, sumArray(위탁생산)], format: 'number' },
-    { account: '본사선급금', level: 2, isGroup: false, isCalculated: false, values: [...본사선급금, sumArray(본사선급금)], format: 'number' },
-    { account: '운영비', level: 2, isGroup: false, isCalculated: false, values: [...운영비, sumArray(운영비)], format: 'number' },
+    { account: '본사', level: 3, isGroup: false, isCalculated: false, values: [...본사, sumArray(본사)], format: 'number', year2024Value: get2024Value('본사') },
+    { account: '위탁생산', level: 3, isGroup: false, isCalculated: false, values: [...위탁생산, sumArray(위탁생산)], format: 'number', year2024Value: get2024Value('위탁생산') },
+    { account: '본사선급금', level: 2, isGroup: false, isCalculated: false, values: [...본사선급금, sumArray(본사선급금)], format: 'number', year2024Value: get2024Value('본사선급금') },
+    { account: '운영비', level: 2, isGroup: false, isCalculated: false, values: [...운영비, sumArray(운영비)], format: 'number', year2024Value: get2024Value('운영비') },
     {
       account: '2. 재무활동',
       level: 0,
@@ -822,9 +859,10 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isHighlight: 'sky',
       values: [...재무활동, sumArray(재무활동)],
       format: 'number',
+      year2024Value: 재무활동2024,
     },
-    { account: '차입금입금', level: 1, isGroup: false, isCalculated: false, values: [...차입금입금, sumArray(차입금입금)], format: 'number' },
-    { account: '차입금상환', level: 1, isGroup: false, isCalculated: false, values: [...차입금상환, sumArray(차입금상환)], format: 'number' },
+    { account: '차입금입금', level: 1, isGroup: false, isCalculated: false, values: [...차입금입금, sumArray(차입금입금)], format: 'number', year2024Value: get2024Value('차입금입금') },
+    { account: '차입금상환', level: 1, isGroup: false, isCalculated: false, values: [...차입금상환, sumArray(차입금상환)], format: 'number', year2024Value: get2024Value('차입금상환') },
     {
       account: '3. 투자활동',
       level: 0,
@@ -834,8 +872,9 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isHighlight: 'sky',
       values: [...투자활동, sumArray(투자활동)],
       format: 'number',
+      year2024Value: 투자활동2024,
     },
-    { account: '자산성지출', level: 1, isGroup: false, isCalculated: false, values: [...자산성지출, sumArray(자산성지출)], format: 'number' },
+    { account: '자산성지출', level: 1, isGroup: false, isCalculated: false, values: [...자산성지출, sumArray(자산성지출)], format: 'number', year2024Value: get2024Value('자산성지출') },
     {
       account: '기말현금',
       level: 0,
@@ -845,6 +884,7 @@ export function calculateCF(data: FinancialData[]): TableRow[] {
       isHighlight: 'yellow',
       values: [...기말현금, null], // 합계는 null
       format: 'number',
+      year2024Value: 기말현금2024,
     },
   ];
   
