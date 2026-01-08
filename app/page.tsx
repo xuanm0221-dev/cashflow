@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Tabs from '@/components/Tabs';
 import YearTabs from '@/components/YearTabs';
+import BrandTabs from '@/components/BrandTabs';
 import BaseMonthSelector from '@/components/BaseMonthSelector';
 import FinancialTable from '@/components/FinancialTable';
 import CreditStatus from '@/components/CreditStatus';
@@ -13,9 +14,10 @@ import { TableRow, CreditData, TabType, ExecutiveSummaryData } from '@/lib/types
 export default function Home() {
   const [activeTab, setActiveTab] = useState<number>(0);
   const [plYear, setPlYear] = useState<number>(2025);
+  const [plBrand, setPlBrand] = useState<string | null>(null); // null=법인, 'mlb', 'kids' 등
   const [bsYear, setBsYear] = useState<number>(2025);
-  const [baseMonth, setBaseMonth] = useState<number>(11); // 기준월 (기본 11월)
-  const [cfBaseMonth, setCfBaseMonth] = useState<number>(11); // 현금흐름표 기준월
+  const [baseMonth, setBaseMonth] = useState<number>(12); // 기준월 (기본 12월)
+  const [cfBaseMonth, setCfBaseMonth] = useState<number>(12); // 현금흐름표 기준월 (기본 12월)
   const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(true); // 재무상태표 & 운전자본 월별 접기
   const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(false); // 현금흐름표 월별 접기
   const [summaryData, setSummaryData] = useState<ExecutiveSummaryData | null>(null);
@@ -33,21 +35,38 @@ export default function Home() {
   const [wcRemarks, setWcRemarks] = useState<Map<string, string>>(new Map());
   const [wcRemarksAuto, setWcRemarksAuto] = useState<{ [key: string]: string } | null>(null);
 
+  // 브랜드 목록
+  const brands = [
+    { id: null, label: '법인' },
+    { id: 'mlb', label: 'MLB' },
+    { id: 'kids', label: 'KIDS' },
+    { id: 'discovery', label: 'DISCOVERY' },
+    { id: 'duvetica', label: 'DUVETICA' },
+    { id: 'supra', label: 'SUPRA' },
+  ];
+
   const tabs = ['경영요약', '손익계산서', '재무상태표', '현금흐름표', '여신사용현황'];
   const tabTypes: TabType[] = ['SUMMARY', 'PL', 'BS', 'CF', 'CREDIT'];
 
   // 데이터 로딩
-  const loadData = async (type: TabType, year?: number, month?: number) => {
+  const loadData = async (type: TabType, year?: number, month?: number, brand?: string | null) => {
     setLoading(true);
     setError(null);
 
     try {
       let url = '';
       if (type === 'PL') {
-        url = `/api/fs/pl?year=${year}`;
-        // 2025년이고 month가 지정된 경우 baseMonth 추가
-        if (year === 2025 && month !== undefined) {
-          url += `&baseMonth=${month}`;
+        // 브랜드별 또는 법인 PL
+        if (brand) {
+          url = `/api/fs/pl/brand?brand=${brand}&year=${year}`;
+          if (year === 2025 && month !== undefined) {
+            url += `&baseMonth=${month}`;
+          }
+        } else {
+          url = `/api/fs/pl?year=${year}`;
+          if (year === 2025 && month !== undefined) {
+            url += `&baseMonth=${month}`;
+          }
         }
       } else if (type === 'BS') {
         url = `/api/fs/bs?year=${year}`;
@@ -184,7 +203,7 @@ export default function Home() {
     if (currentType === 'SUMMARY' && !summaryData) {
       loadSummaryData();
     } else if (currentType === 'PL' && !plData) {
-      loadData('PL', plYear, baseMonth);
+      loadData('PL', plYear, baseMonth, plBrand);
     } else if (currentType === 'BS' && !bsData) {
       loadData('BS', bsYear);
     } else if (currentType === 'CF' && !cfData) {
@@ -197,7 +216,7 @@ export default function Home() {
   // 연도 변경 시 데이터 리로드
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL') {
-      loadData('PL', plYear, baseMonth);
+      loadData('PL', plYear, baseMonth, plBrand);
     }
   }, [plYear]);
 
@@ -210,9 +229,16 @@ export default function Home() {
   // 기준월 변경 시 데이터 리로드 (PL 2025년만)
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL' && plYear === 2025) {
-      loadData('PL', plYear, baseMonth);
+      loadData('PL', plYear, baseMonth, plBrand);
     }
   }, [baseMonth]);
+
+  // 브랜드 변경 시 데이터 리로드
+  useEffect(() => {
+    if (tabTypes[activeTab] === 'PL') {
+      loadData('PL', plYear, baseMonth, plBrand);
+    }
+  }, [plBrand]);
 
   // 월 컬럼 (1월~12월)
   const monthColumns = ['계정과목', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
@@ -245,6 +271,8 @@ export default function Home() {
                 {plYear === 2025 && (
                   <BaseMonthSelector baseMonth={baseMonth} onChange={setBaseMonth} />
                 )}
+                <div className="h-8 w-px bg-gray-400 mx-2"></div>
+                <BrandTabs brands={brands} activeBrand={plBrand} onChange={setPlBrand} />
               </div>
             </div>
             {loading && <div className="p-6 text-center">로딩 중...</div>}

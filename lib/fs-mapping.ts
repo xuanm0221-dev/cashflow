@@ -21,16 +21,24 @@ export function getAccountValues(map: Map<string, number[]>, account: string): n
 }
 
 // ==================== PL (손익계산서) ====================
-export function calculatePL(data: FinancialData[]): TableRow[] {
+export function calculatePL(data: FinancialData[], isBrand: boolean = false): TableRow[] {
   const map = createMonthDataMap(data);
   
   // Tag매출
-  const MLB = getAccountValues(map, 'MLB');
-  const KIDS = getAccountValues(map, 'KIDS');
-  const Discovery = getAccountValues(map, 'DISCOVERY');
-  const Duvetica = getAccountValues(map, 'DUVETICA');
-  const Supra = getAccountValues(map, 'SUPRA');
-  const Tag매출 = MLB.map((v, i) => v + KIDS[i] + Discovery[i] + Duvetica[i] + Supra[i]);
+  let Tag매출: number[];
+  
+  if (isBrand) {
+    // 브랜드별: Tag매출을 CSV에서 직접 읽기
+    Tag매출 = getAccountValues(map, 'Tag매출');
+  } else {
+    // 법인: 브랜드별 합산
+    const MLB = getAccountValues(map, 'MLB');
+    const KIDS = getAccountValues(map, 'KIDS');
+    const Discovery = getAccountValues(map, 'DISCOVERY');
+    const Duvetica = getAccountValues(map, 'DUVETICA');
+    const Supra = getAccountValues(map, 'SUPRA');
+    Tag매출 = MLB.map((v, i) => v + KIDS[i] + Discovery[i] + Duvetica[i] + Supra[i]);
+  }
   
   // 실판매출 (파일에서 직접 읽기)
   const 실판매출 = getAccountValues(map, '실판매출');
@@ -89,18 +97,21 @@ export function calculatePL(data: FinancialData[]): TableRow[] {
     {
       account: 'Tag매출',
       level: 0,
-      isGroup: true,
-      isCalculated: true,
+      isGroup: isBrand ? false : true,
+      isCalculated: isBrand ? false : true,
       isBold: true,
       isHighlight: 'sky',
       values: Tag매출,
       format: 'number',
     },
-    { account: 'MLB', level: 1, isGroup: false, isCalculated: false, values: MLB, format: 'number' },
-    { account: 'KIDS', level: 1, isGroup: false, isCalculated: false, values: KIDS, format: 'number' },
-    { account: 'DISCOVERY', level: 1, isGroup: false, isCalculated: false, values: Discovery, format: 'number' },
-    { account: 'DUVETICA', level: 1, isGroup: false, isCalculated: false, values: Duvetica, format: 'number' },
-    { account: 'SUPRA', level: 1, isGroup: false, isCalculated: false, values: Supra, format: 'number' },
+    // 브랜드별일 경우 하위 브랜드 항목 생략
+    ...(!isBrand ? [
+      { account: 'MLB', level: 1, isGroup: false, isCalculated: false, values: getAccountValues(map, 'MLB'), format: 'number' as const },
+      { account: 'KIDS', level: 1, isGroup: false, isCalculated: false, values: getAccountValues(map, 'KIDS'), format: 'number' as const },
+      { account: 'DISCOVERY', level: 1, isGroup: false, isCalculated: false, values: getAccountValues(map, 'DISCOVERY'), format: 'number' as const },
+      { account: 'DUVETICA', level: 1, isGroup: false, isCalculated: false, values: getAccountValues(map, 'DUVETICA'), format: 'number' as const },
+      { account: 'SUPRA', level: 1, isGroup: false, isCalculated: false, values: getAccountValues(map, 'SUPRA'), format: 'number' as const },
+    ] : []),
     {
       account: '실판매출',
       level: 0,
