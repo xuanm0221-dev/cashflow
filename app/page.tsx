@@ -20,6 +20,8 @@ export default function Home() {
   const [cfBaseMonth, setCfBaseMonth] = useState<number>(12); // 현금흐름표 기준월 (기본 12월)
   const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(true); // 재무상태표 & 운전자본 월별 접기
   const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(false); // 현금흐름표 월별 접기
+  // 브랜드별 손익 보기는 항상 활성화 (법인 선택 시)
+  const [hideYtd, setHideYtd] = useState<boolean>(true); // YTD 숨기기 (기준월 12월일 때, 기본값: 숨김)
   const [summaryData, setSummaryData] = useState<ExecutiveSummaryData | null>(null);
   const [plData, setPlData] = useState<TableRow[] | null>(null);
   const [bsData, setBsData] = useState<TableRow[] | null>(null);
@@ -203,7 +205,11 @@ export default function Home() {
     if (currentType === 'SUMMARY' && !summaryData) {
       loadSummaryData();
     } else if (currentType === 'PL' && !plData) {
-      loadData('PL', plYear, baseMonth, plBrand);
+      if (plBrand === null) {
+        loadBrandBreakdownData();
+      } else {
+        loadData('PL', plYear, baseMonth, plBrand);
+      }
     } else if (currentType === 'BS' && !bsData) {
       loadData('BS', bsYear);
     } else if (currentType === 'CF' && !cfData) {
@@ -216,7 +222,11 @@ export default function Home() {
   // 연도 변경 시 데이터 리로드
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL') {
-      loadData('PL', plYear, baseMonth, plBrand);
+      if (plBrand === null) {
+        loadBrandBreakdownData();
+      } else {
+        loadData('PL', plYear, baseMonth, plBrand);
+      }
     }
   }, [plYear]);
 
@@ -229,16 +239,51 @@ export default function Home() {
   // 기준월 변경 시 데이터 리로드 (PL 2025년만)
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL' && plYear === 2025) {
-      loadData('PL', plYear, baseMonth, plBrand);
+      if (plBrand === null) {
+        loadBrandBreakdownData();
+      } else {
+        loadData('PL', plYear, baseMonth, plBrand);
+      }
     }
   }, [baseMonth]);
 
   // 브랜드 변경 시 데이터 리로드
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL') {
-      loadData('PL', plYear, baseMonth, plBrand);
+      if (plBrand === null) {
+        // 법인 선택 시 항상 브랜드별 손익 데이터 로드
+        loadBrandBreakdownData();
+      } else {
+        loadData('PL', plYear, baseMonth, plBrand);
+      }
     }
   }, [plBrand]);
+
+  // 브랜드별 손익 보기 데이터 로드
+  const loadBrandBreakdownData = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      let url = `/api/fs/pl/breakdown?year=${plYear}`;
+      if (plYear === 2025) {
+        url += `&baseMonth=${baseMonth}`;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('데이터를 불러올 수 없습니다.');
+      }
+
+      const result = await response.json();
+      setPlData(result.rows);
+    } catch (err) {
+      console.error(err);
+      setError('브랜드별 손익 데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 월 컬럼 (1월~12월)
   const monthColumns = ['계정과목', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
@@ -284,6 +329,9 @@ export default function Home() {
                   columns={monthColumns}
                   showComparisons={plYear === 2025}
                   baseMonth={baseMonth}
+                  showBrandBreakdown={plBrand === null}
+                  hideYtd={hideYtd}
+                  onHideYtdToggle={plYear === 2025 ? () => setHideYtd(!hideYtd) : undefined}
                 />
               </div>
             )}

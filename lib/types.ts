@@ -19,6 +19,7 @@ export interface TableRow {
   format?: 'number' | 'percent'; // 표시 형식
   comparisons?: ComparisonData; // 비교 데이터 (PL 2025년 전용)
   year2024Value?: number | null; // CF용 2024년 값
+  brandComparisons?: BrandComparisonData; // 브랜드별 비교 데이터 (브랜드별 손익 보기 전용)
 }
 
 // 비교 데이터 (PL 2025년 전용)
@@ -32,6 +33,22 @@ export interface ComparisonData {
   prevYearAnnual: number | null; // 24년 연간
   currYearAnnual: number | null; // 25년 연간
   annualYoY: number | null; // 연간 YoY
+}
+
+// 브랜드별 비교 데이터 (브랜드별 손익 보기 전용)
+export interface BrandComparisonData {
+  month: {
+    prevYear: { [brand: string]: number | null }; // 전년(12월) 브랜드별
+    currYear: { [brand: string]: number | null }; // 당년(12월) 브랜드별
+  };
+  ytd: {
+    prevYear: { [brand: string]: number | null }; // 전년YTD 브랜드별
+    currYear: { [brand: string]: number | null }; // 당년YTD 브랜드별
+  };
+  annual: {
+    prevYear: { [brand: string]: number | null }; // 24년연간 브랜드별
+    currYear: { [brand: string]: number | null }; // 25년연간 브랜드별
+  };
 }
 
 // 재무제표 타입

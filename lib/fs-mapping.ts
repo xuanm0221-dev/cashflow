@@ -1,4 +1,4 @@
-import { FinancialData, TableRow, ComparisonData } from './types';
+import { FinancialData, TableRow, ComparisonData, BrandComparisonData } from './types';
 
 // 월별 데이터를 Map으로 변환
 export function createMonthDataMap(data: FinancialData[]): Map<string, number[]> {
@@ -280,6 +280,77 @@ export function calculateComparisonData(
   });
   
   return result;
+}
+
+// 브랜드별 비교 데이터 계산 (브랜드별 손익 보기 전용)
+export function calculateBrandBreakdown(
+  corporateRows: TableRow[],
+  brandRowsMap: Map<string, TableRow[]>, // brand -> TableRow[]
+  baseMonth: number
+): TableRow[] {
+  const brands = ['MLB', 'KIDS', 'DISCOVERY', 'DUVETICA', 'SUPRA'];
+  
+  return corporateRows.map(row => {
+    const brandComparisons: BrandComparisonData = {
+      month: {
+        prevYear: {},
+        currYear: {},
+      },
+      ytd: {
+        prevYear: {},
+        currYear: {},
+      },
+      annual: {
+        prevYear: {},
+        currYear: {},
+      },
+    };
+
+    // 각 브랜드별 데이터 추출
+    brands.forEach(brand => {
+      const brandRows = brandRowsMap.get(brand.toLowerCase());
+      if (!brandRows) {
+        brandComparisons.month.prevYear[brand] = null;
+        brandComparisons.month.currYear[brand] = null;
+        brandComparisons.ytd.prevYear[brand] = null;
+        brandComparisons.ytd.currYear[brand] = null;
+        brandComparisons.annual.prevYear[brand] = null;
+        brandComparisons.annual.currYear[brand] = null;
+        return;
+      }
+
+      // 해당 계정 찾기
+      const brandRow = brandRows.find(r => r.account === row.account);
+      if (!brandRow || !brandRow.comparisons) {
+        brandComparisons.month.prevYear[brand] = null;
+        brandComparisons.month.currYear[brand] = null;
+        brandComparisons.ytd.prevYear[brand] = null;
+        brandComparisons.ytd.currYear[brand] = null;
+        brandComparisons.annual.prevYear[brand] = null;
+        brandComparisons.annual.currYear[brand] = null;
+        return;
+      }
+
+      const comp = brandRow.comparisons;
+      
+      // 월별 데이터
+      brandComparisons.month.prevYear[brand] = comp.prevYearMonth;
+      brandComparisons.month.currYear[brand] = comp.currYearMonth;
+      
+      // YTD 데이터
+      brandComparisons.ytd.prevYear[brand] = comp.prevYearYTD;
+      brandComparisons.ytd.currYear[brand] = comp.currYearYTD;
+      
+      // 연간 데이터
+      brandComparisons.annual.prevYear[brand] = comp.prevYearAnnual;
+      brandComparisons.annual.currYear[brand] = comp.currYearAnnual;
+    });
+
+    return {
+      ...row,
+      brandComparisons,
+    };
+  });
 }
 
 // ==================== BS (재무상태표) ====================
