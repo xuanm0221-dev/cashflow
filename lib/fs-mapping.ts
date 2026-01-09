@@ -308,42 +308,43 @@ export function calculateBrandBreakdown(
 
     // 각 브랜드별 데이터 추출
     brands.forEach(brand => {
-      const brandRows = brandRowsMap.get(brand.toLowerCase());
+      const brandKey = brand.toLowerCase(); // 소문자 키 사용
+      const brandRows = brandRowsMap.get(brandKey);
       if (!brandRows) {
-        brandComparisons.month.prevYear[brand] = null;
-        brandComparisons.month.currYear[brand] = null;
-        brandComparisons.ytd.prevYear[brand] = null;
-        brandComparisons.ytd.currYear[brand] = null;
-        brandComparisons.annual.prevYear[brand] = null;
-        brandComparisons.annual.currYear[brand] = null;
+        brandComparisons.month.prevYear[brandKey] = null;
+        brandComparisons.month.currYear[brandKey] = null;
+        brandComparisons.ytd.prevYear[brandKey] = null;
+        brandComparisons.ytd.currYear[brandKey] = null;
+        brandComparisons.annual.prevYear[brandKey] = null;
+        brandComparisons.annual.currYear[brandKey] = null;
         return;
       }
 
       // 해당 계정 찾기
       const brandRow = brandRows.find(r => r.account === row.account);
       if (!brandRow || !brandRow.comparisons) {
-        brandComparisons.month.prevYear[brand] = null;
-        brandComparisons.month.currYear[brand] = null;
-        brandComparisons.ytd.prevYear[brand] = null;
-        brandComparisons.ytd.currYear[brand] = null;
-        brandComparisons.annual.prevYear[brand] = null;
-        brandComparisons.annual.currYear[brand] = null;
+        brandComparisons.month.prevYear[brandKey] = null;
+        brandComparisons.month.currYear[brandKey] = null;
+        brandComparisons.ytd.prevYear[brandKey] = null;
+        brandComparisons.ytd.currYear[brandKey] = null;
+        brandComparisons.annual.prevYear[brandKey] = null;
+        brandComparisons.annual.currYear[brandKey] = null;
         return;
       }
 
       const comp = brandRow.comparisons;
       
       // 월별 데이터
-      brandComparisons.month.prevYear[brand] = comp.prevYearMonth;
-      brandComparisons.month.currYear[brand] = comp.currYearMonth;
+      brandComparisons.month.prevYear[brandKey] = comp.prevYearMonth;
+      brandComparisons.month.currYear[brandKey] = comp.currYearMonth;
       
       // YTD 데이터
-      brandComparisons.ytd.prevYear[brand] = comp.prevYearYTD;
-      brandComparisons.ytd.currYear[brand] = comp.currYearYTD;
+      brandComparisons.ytd.prevYear[brandKey] = comp.prevYearYTD;
+      brandComparisons.ytd.currYear[brandKey] = comp.currYearYTD;
       
       // 연간 데이터
-      brandComparisons.annual.prevYear[brand] = comp.prevYearAnnual;
-      brandComparisons.annual.currYear[brand] = comp.currYearAnnual;
+      brandComparisons.annual.prevYear[brandKey] = comp.prevYearAnnual;
+      brandComparisons.annual.currYear[brandKey] = comp.currYearAnnual;
     });
 
     return {
