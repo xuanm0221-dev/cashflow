@@ -685,6 +685,12 @@ export default function FinancialTable({
                           const monthYoYPercent = (row.comparisons.currYearMonth !== null && row.comparisons.prevYearMonth !== null && row.comparisons.prevYearMonth !== 0) 
                             ? row.comparisons.currYearMonth / row.comparisons.prevYearMonth 
                             : null;
+                          // 영업이익 흑자전환 체크
+                          const isProfitTurnaround = row.account === '영업이익' 
+                            && row.comparisons.currYearMonth !== null 
+                            && row.comparisons.prevYearMonth !== null
+                            && row.comparisons.currYearMonth > 0 
+                            && row.comparisons.prevYearMonth < 0;
                           cells.push(
                             <td key={`curr-month-${i}`} className={`border border-gray-300 px-4 py-2 text-right ${getHighlightClass(row.isHighlight)} ${row.isBold ? 'font-semibold' : ''}`}>
                               <div className="flex flex-col items-end">
@@ -697,7 +703,12 @@ export default function FinancialTable({
                                   <span className={isNegative(monthYoY) ? 'text-red-600' : monthYoY !== null && monthYoY > 0 ? 'text-green-600' : ''}>
                                     {formatValue(monthYoY, row.format, true, false)}
                                   </span>
-                                  {monthYoYPercent !== null && (
+                                  {isProfitTurnaround ? (
+                                    <>
+                                      <span className="mx-1">,</span>
+                                      <span className="text-green-600 font-semibold">흑자전환</span>
+                                    </>
+                                  ) : monthYoYPercent !== null && row.account !== '영업이익률' && row.account !== '(Tag 대비 원가율)' && (
                                     <>
                                       <span className="mx-1">,</span>
                                       <span className={monthYoYPercent < 1 ? 'text-red-600' : monthYoYPercent > 1 ? 'text-green-600' : ''}>
@@ -740,6 +751,12 @@ export default function FinancialTable({
                           const ytdYoYPercent = (row.comparisons.currYearYTD !== null && row.comparisons.prevYearYTD !== null && row.comparisons.prevYearYTD !== 0) 
                             ? row.comparisons.currYearYTD / row.comparisons.prevYearYTD 
                             : null;
+                          // 영업이익 흑자전환 체크
+                          const isProfitTurnaround = row.account === '영업이익' 
+                            && row.comparisons.currYearYTD !== null 
+                            && row.comparisons.prevYearYTD !== null
+                            && row.comparisons.currYearYTD > 0 
+                            && row.comparisons.prevYearYTD < 0;
                           cells.push(
                             <td key={`curr-ytd-${i}`} className={`border border-gray-300 px-4 py-2 text-right ${getHighlightClass(row.isHighlight)} ${row.isBold ? 'font-semibold' : ''}`}>
                               <div className="flex flex-col items-end">
@@ -752,7 +769,12 @@ export default function FinancialTable({
                                   <span className={isNegative(ytdYoY) ? 'text-red-600' : ytdYoY !== null && ytdYoY > 0 ? 'text-green-600' : ''}>
                                     {formatValue(ytdYoY, row.format, true, false)}
                                   </span>
-                                  {ytdYoYPercent !== null && (
+                                  {isProfitTurnaround ? (
+                                    <>
+                                      <span className="mx-1">,</span>
+                                      <span className="text-green-600 font-semibold">흑자전환</span>
+                                    </>
+                                  ) : ytdYoYPercent !== null && row.account !== '영업이익률' && row.account !== '(Tag 대비 원가율)' && (
                                     <>
                                       <span className="mx-1">,</span>
                                       <span className={ytdYoYPercent < 1 ? 'text-red-600' : ytdYoYPercent > 1 ? 'text-green-600' : ''}>
@@ -787,6 +809,12 @@ export default function FinancialTable({
                           const annualYoYPercent = (row.comparisons.currYearAnnual !== null && row.comparisons.prevYearAnnual !== null && row.comparisons.prevYearAnnual !== 0) 
                             ? row.comparisons.currYearAnnual / row.comparisons.prevYearAnnual 
                             : null;
+                          // 영업이익 흑자전환 체크
+                          const isProfitTurnaround = row.account === '영업이익' 
+                            && row.comparisons.currYearAnnual !== null 
+                            && row.comparisons.prevYearAnnual !== null
+                            && row.comparisons.currYearAnnual > 0 
+                            && row.comparisons.prevYearAnnual < 0;
                           cells.push(
                             <td key={`curr-annual-${i}`} className={`border border-gray-300 px-4 py-2 text-right ${getHighlightClass(row.isHighlight)} ${row.isBold ? 'font-semibold' : ''}`}>
                               <div className="flex flex-col items-end">
@@ -799,7 +827,12 @@ export default function FinancialTable({
                                   <span className={isNegative(annualYoY) ? 'text-red-600' : annualYoY !== null && annualYoY > 0 ? 'text-green-600' : ''}>
                                     {formatValue(annualYoY, row.format, true, false)}
                                   </span>
-                                  {annualYoYPercent !== null && (
+                                  {isProfitTurnaround ? (
+                                    <>
+                                      <span className="mx-1">,</span>
+                                      <span className="text-green-600 font-semibold">흑자전환</span>
+                                    </>
+                                  ) : annualYoYPercent !== null && row.account !== '영업이익률' && row.account !== '(Tag 대비 원가율)' && (
                                     <>
                                       <span className="mx-1">,</span>
                                       <span className={annualYoYPercent < 1 ? 'text-red-600' : annualYoYPercent > 1 ? 'text-green-600' : ''}>
