@@ -986,7 +986,7 @@ export function calculateCF(
       isCalculated: true,
       isBold: true,
       isHighlight: 'yellow',
-      values: [...기초현금, year === 2025 ? 기말현금2024 : (previousYearTotals?.get('기말현금') ?? 기말현금2024), calculateYoY(year === 2025 ? 기말현금2024 : (previousYearTotals?.get('기말현금') ?? 기말현금2024), 기초현금2024)],
+      values: [...기초현금, year === 2025 ? 기말현금2024 : (previousYearTotals?.get('기말현금') ?? 기말현금2024), calculateYoY(기초현금[0], year === 2025 ? 기초현금2024 : (previousYearTotals?.get('기초현금') ?? 기초현금2024))],
       format: 'number',
       year2024Value: year === 2025 ? 기초현금2024 : (previousYearTotals?.get('기초현금') ?? 기초현금2024),
     },
