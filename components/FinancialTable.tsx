@@ -417,7 +417,8 @@ export default function FinancialTable({
                   if (isAccountCol) return { width: '280px', minWidth: '280px' };
                   // 합계 컬럼 체크 (동적)
                   const isTotalCol = col.includes('년(합계)');
-                  if (col === '2024년' || isTotalCol || col === 'YoY') {
+                  const isPrevYearCol = col === '2024년' || col === '2025년';
+                  if (isPrevYearCol || isTotalCol || col === 'YoY') {
                     return { width: '160px', minWidth: '160px' };
                   }
                   if (isMonthCol) return { width: '120px', minWidth: '120px' };
