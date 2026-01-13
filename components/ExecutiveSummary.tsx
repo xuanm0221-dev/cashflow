@@ -35,16 +35,34 @@ export default function ExecutiveSummary({ data, onChange, onReset }: ExecutiveS
     value: string
   ) => {
     const lines = value.split('\n').filter(line => line.trim());
-    onChange({
-      ...data,
-      sections: {
-        ...data.sections,
-        [section]: {
-          ...data.sections[section],
-          [subsection]: lines
+    
+    if (section === '브랜드포트폴리오' && subsection === '신규브랜드성장') {
+      // 브랜드포트폴리오 섹션을 새 구조로 변환
+      const brandPortfolio = { ...data.sections.브랜드포트폴리오 };
+      // 이전 키 제거 (있다면)
+      delete (brandPortfolio as any).신규브랜드고성장;
+      // 새 키로 업데이트
+      brandPortfolio.신규브랜드성장 = lines;
+      
+      onChange({
+        ...data,
+        sections: {
+          ...data.sections,
+          브랜드포트폴리오: brandPortfolio
         }
-      }
-    });
+      });
+    } else {
+      onChange({
+        ...data,
+        sections: {
+          ...data.sections,
+          [section]: {
+            ...data.sections[section],
+            [subsection]: lines
+          }
+        }
+      });
+    }
   };
 
   // 저장 (localStorage + JSON 백업 다운로드)
@@ -69,6 +87,10 @@ export default function ExecutiveSummary({ data, onChange, onReset }: ExecutiveS
       alert('저장에 실패했습니다.');
     }
   };
+
+  // 이전 구조 호환성 처리 (신규브랜드고성장 -> 신규브랜드성장)
+  const 신규브랜드성장 = data.sections.브랜드포트폴리오.신규브랜드성장 || 
+    (data.sections.브랜드포트폴리오 as any).신규브랜드고성장 || [];
 
   return (
     <div className="p-6">
@@ -229,12 +251,12 @@ export default function ExecutiveSummary({ data, onChange, onReset }: ExecutiveS
                 />
               </div>
 
-              {/* 신규 브랜드 고성장 */}
+              {/* 신규 브랜드 성장 */}
               <div>
-                <h3 className="font-semibold text-gray-700 mb-2 text-sm">신규 브랜드 고성장</h3>
+                <h3 className="font-semibold text-gray-700 mb-2 text-sm">신규 브랜드 성장</h3>
                 <textarea
-                  value={data.sections.브랜드포트폴리오.신규브랜드고성장.join('\n')}
-                  onChange={(e) => handleTextChange('브랜드포트폴리오', '신규브랜드고성장', e.target.value)}
+                  value={신규브랜드성장.join('\n')}
+                  onChange={(e) => handleTextChange('브랜드포트폴리오', '신규브랜드성장', e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   rows={3}
                 />
@@ -246,4 +268,3 @@ export default function ExecutiveSummary({ data, onChange, onReset }: ExecutiveS
     </div>
   );
 }
-

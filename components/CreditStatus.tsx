@@ -13,7 +13,7 @@ export default function CreditStatus({ data }: CreditStatusProps) {
   const [wuhanMemo, setWuhanMemo] = useState<string>('생태니스로 에스크로 계좌 운용중');
   const [editingWuhan, setEditingWuhan] = useState<boolean>(false);
   const [recoveryPlan, setRecoveryPlan] = useState<string>(
-    '여신회수: 11월 390m(회수 실적 388m), 12월 258m, 1월 62m, 2월 179m, 3월 81m'
+    '여신회수: 12월 258m(회수 실적 282m), 1월 330m, 2월 190m, 3월 107m, 4월 10m'
   );
   const [editingRecovery, setEditingRecovery] = useState<boolean>(false);
   const [othersCollapsed, setOthersCollapsed] = useState<boolean>(true);

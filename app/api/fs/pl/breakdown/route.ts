@@ -77,8 +77,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('브랜드별 손익 보기 API 에러:', error);
+    const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
     return NextResponse.json(
-      { error: '브랜드별 손익 데이터를 불러오는데 실패했습니다.' },
+      { error: `브랜드별 손익 데이터를 불러오는데 실패했습니다: ${errorMessage}` },
       { status: 500 }
     );
   }

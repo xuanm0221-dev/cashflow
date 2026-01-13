@@ -18,13 +18,15 @@ function generateSummary(
   bs2025: TableRow[]
 ): ExecutiveSummaryData {
   
-  const month = 10; // 11월 (index 10)
+  const month = 11; // 12월 (index 11)
   
-  // PL 데이터 추출 (11월 기준, K 단위)
+  // PL 데이터 추출 (12월 기준, K 단위)
   const tag매출24 = getValue(pl2024, 'Tag매출', month);
   const tag매출25 = getValue(pl2025, 'Tag매출', month);
   const 실판매출24 = getValue(pl2024, '실판매출', month);
   const 실판매출25 = getValue(pl2025, '실판매출', month);
+  const 매출총이익24 = getValue(pl2024, '매출총이익', month);
+  const 매출총이익25 = getValue(pl2025, '매출총이익', month);
   const 영업이익24 = getValue(pl2024, '영업이익', month);
   const 영업이익25 = getValue(pl2025, '영업이익', month);
   const 영업이익률24 = getValue(pl2024, '영업이익률', month);
@@ -34,13 +36,19 @@ function generateSummary(
   const 광고비24 = getValue(pl2024, '광고비', month);
   const 광고비25 = getValue(pl2025, '광고비', month);
   
-  // BS 데이터 추출 (11월 기준, K 단위)
+  // BS 데이터 추출 (12월 기준, K 단위)
   const 자산24 = getValue(bs2024, '자산', month);
   const 자산25 = getValue(bs2025, '자산', month);
   const 부채24 = getValue(bs2024, '부채', month);
   const 부채25 = getValue(bs2025, '부채', month);
   const 자본24 = getValue(bs2024, '자본', month);
   const 자본25 = getValue(bs2025, '자본', month);
+  const 유동자산24 = getValue(bs2024, '유동자산', month);
+  const 유동자산25 = getValue(bs2025, '유동자산', month);
+  const 유동부채24 = getValue(bs2024, '유동부채', month);
+  const 유동부채25 = getValue(bs2025, '유동부채', month);
+  const 이익잉여금24 = getValue(bs2024, '이익잉여금', month);
+  const 이익잉여금25 = getValue(bs2025, '이익잉여금', month);
   const 재고24 = getValue(bs2024, '재고자산', month);
   const 재고25 = getValue(bs2025, '재고자산', month);
   const 직영AR24 = getValue(bs2024, '직영AR', month);
@@ -52,15 +60,12 @@ function generateSummary(
   const 차입금24 = getValue(bs2024, '차입금', month);
   const 차입금25 = getValue(bs2025, '차입금', month);
   
-  // 브랜드별 매출 (11월 기준, K 단위)
+  // 브랜드별 매출 (12월 기준, K 단위)
   const mlb25 = getValue(pl2025, 'MLB', month);
   const kids25 = getValue(pl2025, 'KIDS', month);
   const discovery24 = getValue(pl2024, 'DISCOVERY', month);
   const discovery25 = getValue(pl2025, 'DISCOVERY', month);
-  const duvetica24 = getValue(pl2024, 'DUVETICA', month);
-  const duvetica25 = getValue(pl2025, 'DUVETICA', month);
-  const supra24 = getValue(pl2024, 'SUPRA', month);
-  const supra25 = getValue(pl2025, 'SUPRA', month);
+  // Duvetica와 Supra는 사업 중단으로 분석에서 제외
   
   // 계산
   const tag매출증가율 = ((tag매출25 - tag매출24) / tag매출24) * 100;
@@ -73,55 +78,79 @@ function generateSummary(
   const 자본증가율 = ((자본25 - 자본24) / 자본24) * 100;
   const 재고증가율 = ((재고25 - 재고24) / 재고24) * 100;
   const AR증가율 = ((AR25 - AR24) / AR24) * 100;
-  const 부채비율24 = (부채24 / 자본24) * 100;
-  const 부채비율25 = (부채25 / 자본25) * 100;
+  const 부채비율24 = 자본24 !== 0 ? (부채24 / 자본24) * 100 : 0;
+  const 부채비율25 = 자본25 !== 0 ? (부채25 / 자본25) * 100 : 0;
   const discovery증가율 = discovery24 !== 0 ? ((discovery25 - discovery24) / discovery24) * 100 : 0;
-  const duvetica증가율 = duvetica24 !== 0 ? ((duvetica25 - duvetica24) / duvetica24) * 100 : 0;
-  const supra증가율 = supra24 !== 0 ? ((supra25 - supra24) / supra24) * 100 : 0;
   
-  // M 단위로 변환 (K / 1000)
+  // 주요지표 계산
+  // 당기순이익 (이익잉여금 YoY 차이, K 단위)
+  // 2024년은 전년도(2023) 데이터가 없으므로 당기순이익 계산 불가
+  const 당기순이익25 = 이익잉여금25 - 이익잉여금24; // 2025년 당기순이익
+  
+  // ROE (자기자본순이익률) - 2024년은 전년도 데이터 없어 계산 불가
+  const ROE24 = 0; // 2024년은 전년도 데이터 없어 계산 불가
+  const ROE25 = 자본25 !== 0 ? (당기순이익25 / 자본25) * 100 : 0;
+  
+  // ROA (총자산순이익률) - 2024년은 전년도 데이터 없어 계산 불가
+  const ROA24 = 0; // 2024년은 전년도 데이터 없어 계산 불가
+  const ROA25 = 자산25 !== 0 ? (당기순이익25 / 자산25) * 100 : 0;
+  
+  // 유동비율
+  const 유동비율24 = 유동부채24 !== 0 ? (유동자산24 / 유동부채24) * 100 : 0;
+  const 유동비율25 = 유동부채25 !== 0 ? (유동자산25 / 유동부채25) * 100 : 0;
+  
+  // 매출총이익률
+  const 매출총이익률24 = 실판매출24 !== 0 ? (매출총이익24 / 실판매출24) * 100 : 0;
+  const 매출총이익률25 = 실판매출25 !== 0 ? (매출총이익25 / 실판매출25) * 100 : 0;
+  
+  // K 단위로 콤마 포맷팅 (1위안 단위 → K 단위 변환)
+  const toKWithComma = (val: number) => {
+    return Math.round(val / 1000).toLocaleString('ko-KR');
+  };
+  
+  // M 단위로 변환 (K / 1000) - 재무현황 등에서 사용하지 않으므로 제거 가능하지만 일단 유지
   const toM = (val: number) => Math.round(val / 1000);
   
   return {
-    title: 'F&F CHINA 2025 재무 성과 종합 분석 (11월 기준)',
-    baseMonth: 11,
+    title: 'F&F CHINA 2025 재무 성과 종합 분석 (12월 기준)',
+    baseMonth: 12,
     sections: {
       수익성분석: {
         매출성장: [
-          `• Tag매출 24년 ${toM(tag매출24)}M → 25년 ${toM(tag매출25)}M (${tag매출증가율 > 0 ? '+' : ''}${tag매출증가율.toFixed(1)}%)`,
-          `• 실판매출 ${toM(실판매출24)}M → ${toM(실판매출25)}M (${실판매출증가율 > 0 ? '+' : '△'}${Math.abs(실판매출증가율).toFixed(1)}%)`,
-          `• 영업이익 ${toM(영업이익24)}M → ${toM(영업이익25)}M (${영업이익증가율 > 0 ? '+' : '△'}${Math.abs(영업이익증가율).toFixed(1)}%)`,
+          `• Tag매출 24년 ${toKWithComma(tag매출24)}K → 25년 ${toKWithComma(tag매출25)}K (${tag매출증가율 > 0 ? '+' : ''}${tag매출증가율.toFixed(1)}%)`,
+          `• 실판매출 ${toKWithComma(실판매출24)}K → ${toKWithComma(실판매출25)}K (${실판매출증가율 > 0 ? '+' : '△'}${Math.abs(실판매출증가율).toFixed(1)}%)`,
+          `• 영업이익 ${toKWithComma(영업이익24)}K → ${toKWithComma(영업이익25)}K (${영업이익증가율 > 0 ? '+' : '△'}${Math.abs(영업이익증가율).toFixed(1)}%)`,
           `• 영업이익률 ${영업이익률24.toFixed(1)}% → ${영업이익률25.toFixed(1)}% (${(영업이익률25 - 영업이익률24) > 0 ? '+' : '△'}${Math.abs(영업이익률25 - 영업이익률24).toFixed(1)}%p)`
         ],
         비용증가: [
-          `• 영업비 ${toM(영업비24)}M → ${toM(영업비25)}M (+${영업비증가율.toFixed(1)}%)`,
-          `• 광고비 ${toM(광고비24)}M → ${toM(광고비25)}M (+${광고비증가율.toFixed(0)}%)`
+          `• 영업비 ${toKWithComma(영업비24)}K → ${toKWithComma(영업비25)}K (+${영업비증가율.toFixed(1)}%)`,
+          `• 광고비 ${toKWithComma(광고비24)}K → ${toKWithComma(광고비25)}K (+${광고비증가율.toFixed(0)}%)`
         ]
       },
       재무현황: {
         자산규모: [
-          `• 총자산: ${toM(자산24)}M → ${toM(자산25)}M (+${toM(자산25 - 자산24)}M, +${자산증가율.toFixed(1)}%)`,
-          `• 현금: ${toM(getValue(bs2024, '현금 및 현금성자산', month))}M → ${toM(getValue(bs2025, '현금 및 현금성자산', month))}M`
+          `• 총자산: ${toKWithComma(자산24)}K → ${toKWithComma(자산25)}K (+${toKWithComma(자산25 - 자산24)}K, +${자산증가율.toFixed(1)}%)`,
+          `• 현금: ${toKWithComma(getValue(bs2024, '현금 및 현금성자산', month))}K → ${toKWithComma(getValue(bs2025, '현금 및 현금성자산', month))}K`
         ],
         부채증가: [
-          `• 부채: ${toM(부채24)}M → ${toM(부채25)}M (${부채증가율 > 0 ? '+' : '△'}${Math.abs(toM(부채25 - 부채24))}M, ${부채증가율 > 0 ? '+' : '△'}${Math.abs(부채증가율).toFixed(1)}%)`,
-          `• 차입금: ${toM(차입금24)}M → ${toM(차입금25)}M`
+          `• 부채: ${toKWithComma(부채24)}K → ${toKWithComma(부채25)}K (${부채증가율 > 0 ? '+' : '△'}${toKWithComma(Math.abs(부채25 - 부채24))}K, ${부채증가율 > 0 ? '+' : '△'}${Math.abs(부채증가율).toFixed(1)}%)`,
+          `• 차입금: ${toKWithComma(차입금24)}K → ${toKWithComma(차입금25)}K`
         ],
         재고자산: [
-          `• 재고: ${toM(재고24)}M → ${toM(재고25)}M (+${toM(재고25 - 재고24)}M, +${재고증가율.toFixed(1)}%)`,
-          `• 외상매출금: ${toM(AR24)}M → ${toM(AR25)}M (+${toM(AR25 - AR24)}M, +${AR증가율.toFixed(1)}%)`,
-          `• ACC 10위 감소 (7.3억 대여상품료)`
+          `• 재고: ${toKWithComma(재고24)}K → ${toKWithComma(재고25)}K (+${toKWithComma(재고25 - 재고24)}K, +${재고증가율.toFixed(1)}%)`,
+          `• 외상매출금: ${toKWithComma(AR24)}K → ${toKWithComma(AR25)}K (+${toKWithComma(AR25 - AR24)}K, +${AR증가율.toFixed(1)}%)`
         ],
         자본안정: [
-          `• 총자본: ${toM(자본24)}M → ${toM(자본25)}M (+${toM(자본25 - 자본24)}M, +${자본증가율.toFixed(1)}%)`
+          `• 총자본: ${toKWithComma(자본24)}K → ${toKWithComma(자본25)}K (+${toKWithComma(자본25 - 자본24)}K, +${자본증가율.toFixed(1)}%)`
         ]
       },
       실적분석: {
         주요지표: [
-          `• 송우난: ${toM(getValue(bs2024, '재고자산', month))}M → ${toM(getValue(bs2025, '재고자산', month))}M (+${재고증가율.toFixed(1)}%)`,
-          `• 지만: ${toM(getValue(bs2024, '재고자산', month) * 0.25)}M → ${toM(getValue(bs2025, '재고자산', month) * 0.4)}M (추정)`,
-          `• 부재비율 ${부채비율24.toFixed(0)}%p → ${부채비율25.toFixed(0)}%p (+${(부채비율25 - 부채비율24).toFixed(0)}%p 악화)`,
-          `• Shanghai Lingbo 48M 최대 거래처`
+          `• ROE (자기자본순이익률): ${ROE25.toFixed(1)}% (당기순이익 ${toKWithComma(당기순이익25)}K)`,
+          `• ROA (총자산순이익률): ${ROA25.toFixed(1)}%`,
+          `• 유동비율: ${유동비율24.toFixed(0)}% → ${유동비율25.toFixed(0)}% (${(유동비율25 - 유동비율24) > 0 ? '+' : '△'}${Math.abs(유동비율25 - 유동비율24).toFixed(0)}%p)`,
+          `• 매출총이익률: ${매출총이익률24.toFixed(1)}% → ${매출총이익률25.toFixed(1)}% (${(매출총이익률25 - 매출총이익률24) > 0 ? '+' : '△'}${Math.abs(매출총이익률25 - 매출총이익률24).toFixed(1)}%p)`,
+          `• 부채비율: ${부채비율24.toFixed(0)}% → ${부채비율25.toFixed(0)}% (${(부채비율25 - 부채비율24) > 0 ? '+' : '△'}${Math.abs(부채비율25 - 부채비율24).toFixed(0)}%p)`
         ],
         부채비율: [
           `• 부채비율: ${부채비율24.toFixed(0)}% → ${부채비율25.toFixed(0)}% (${(부채비율25 - 부채비율24) > 0 ? '+' : ''}${(부채비율25 - 부채비율24).toFixed(0)}%p)`
@@ -129,13 +158,11 @@ function generateSummary(
       },
       브랜드포트폴리오: {
         MLB장종: [
-          `• MLB: ${toM(mlb25)}M (${((mlb25 / tag매출25) * 100).toFixed(1)}%)`,
-          `• KIDS: ${toM(kids25)}M (${((kids25 / tag매출25) * 100).toFixed(1)}%)`
+          `• MLB: ${toKWithComma(mlb25)}K (${((mlb25 / tag매출25) * 100).toFixed(1)}%)`,
+          `• KIDS: ${toKWithComma(kids25)}K (${((kids25 / tag매출25) * 100).toFixed(1)}%)`
         ],
-        신규브랜드고성장: [
-          `• Discovery: ${discovery증가율 > 0 ? '+' : ''}${discovery증가율.toFixed(0)}% (${toM(discovery25)}M)`,
-          `• Duvetica: ${duvetica증가율 > 0 ? '+' : ''}${duvetica증가율.toFixed(0)}% (${toM(duvetica25)}M)`,
-          `• Supra: ${supra증가율 > 0 ? '+' : ''}${supra증가율.toFixed(0)}% (${toM(supra25)}M)`
+        신규브랜드성장: [
+          `• Discovery: ${discovery증가율 > 0 ? '+' : ''}${discovery증가율.toFixed(0)}% (${toKWithComma(discovery25)}K)`
         ]
       }
     }
@@ -174,6 +201,3 @@ export async function GET() {
     );
   }
 }
-
-
-

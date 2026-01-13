@@ -133,8 +133,7 @@ export interface ExecutiveSummaryData {
     };
     브랜드포트폴리오: {
       MLB장종: string[];
-      신규브랜드고성장: string[];
+      신규브랜드성장: string[];
     };
   };
 }
-

@@ -187,13 +187,14 @@ export default function FinancialTable({
     const accountCol = [columns[0]]; // "계정과목"
     
     if (isCashFlow) {
-      // 현금흐름표: 계정과목 | 2024년 | 1월~12월 | 2025년(합계) | YoY
+      // 현금흐름표: 계정과목 | 2024년 | 1월~12월 | {currentYear}년(합계) | YoY
+      const totalColumnHeader = currentYear ? `${currentYear}년(합계)` : '2025년(합계)';
       if (monthsCollapsed) {
         return [
           ...accountCol,
           '2024년',
           '', // 빈 컬럼
-          '2025년(합계)',
+          totalColumnHeader,
           'YoY',
         ];
       } else {
@@ -202,7 +203,7 @@ export default function FinancialTable({
           ...accountCol,
           '2024년',
           ...monthCols,
-          '2025년(합계)',
+          totalColumnHeader,
           'YoY',
         ];
       }
@@ -399,10 +400,10 @@ export default function FinancialTable({
                 const isComparisonCol = showComparisons && comparisonColumns.includes(col);
                 const isBrandCol = showBrandBreakdown && brands.includes(col);
                 
-                // CF: 기준월 외의 월 헤더는 진한 회색으로 표시
+                // CF: 기준월 개념 없음 (모든 월 동일하게 표시)
                 const isMonthCol = col.includes('월') && !col.includes('합계');
-                const isBaseMonthCol = isCashFlow && isMonthCol && col === `${baseMonth}월`;
-                const isNonBaseMonthCol = isCashFlow && isMonthCol && col !== `${baseMonth}월`;
+                const isBaseMonthCol = false; // CF에서는 기준월 사용 안 함
+                const isNonBaseMonthCol = false; // CF에서는 기준월 사용 안 함
                 
                 // 브랜드별 컬럼 접기/펼치기 버튼이 필요한 헤더인지 확인
                 const isMonthGroupHeader = showBrandBreakdown && col === comparisonColumns[1]; // 당년(12월)만
@@ -413,7 +414,9 @@ export default function FinancialTable({
                 const getColumnWidth = () => {
                   if (!compactLayout) return undefined;
                   if (isAccountCol) return { width: '280px', minWidth: '280px' };
-                  if (col === '2024년' || col === '2025년(합계)' || col === 'YoY') {
+                  // 합계 컬럼 체크 (동적)
+                  const isTotalCol = col.includes('년(합계)');
+                  if (col === '2024년' || isTotalCol || col === 'YoY') {
                     return { width: '160px', minWidth: '160px' };
                   }
                   if (isMonthCol) return { width: '120px', minWidth: '120px' };

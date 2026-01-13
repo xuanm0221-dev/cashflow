@@ -16,10 +16,10 @@ export default function Home() {
   const [plYear, setPlYear] = useState<number>(2025);
   const [plBrand, setPlBrand] = useState<string | null>(null); // null=법인, 'mlb', 'kids' 등
   const [bsYear, setBsYear] = useState<number>(2025);
+  const [cfYear, setCfYear] = useState<number>(2025);
   const [baseMonth, setBaseMonth] = useState<number>(12); // 기준월 (기본 12월)
-  const [cfBaseMonth, setCfBaseMonth] = useState<number>(12); // 현금흐름표 기준월 (기본 12월)
   const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(true); // 재무상태표 & 운전자본 월별 접기
-  const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(false); // 현금흐름표 월별 접기
+  const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(true); // 현금흐름표 월별 접기 (2025년 기본값: 접힘)
   // 브랜드별 손익 보기는 항상 활성화 (법인 선택 시)
   const [hideYtd, setHideYtd] = useState<boolean>(true); // YTD 숨기기 (기준월 12월일 때, 기본값: 숨김)
   const [summaryData, setSummaryData] = useState<ExecutiveSummaryData | null>(null);
@@ -134,7 +134,7 @@ export default function Home() {
       } else if (type === 'BS') {
         url = `/api/fs/bs?year=${year}`;
       } else if (type === 'CF') {
-        url = `/api/fs/cf`;
+        url = `/api/fs/cf?year=${year}`;
       } else if (type === 'CREDIT') {
         url = `/api/fs/credit`;
       }
@@ -274,7 +274,9 @@ export default function Home() {
     } else if (currentType === 'BS' && !bsData) {
       loadData('BS', bsYear);
     } else if (currentType === 'CF' && !cfData) {
-      loadData('CF');
+      loadData('CF', cfYear);
+      // 2025년일 때는 접힌 상태, 2026년일 때는 펼쳐진 상태
+      setCfMonthsCollapsed(cfYear === 2025);
     } else if (currentType === 'CREDIT' && !creditData) {
       loadData('CREDIT');
     }
@@ -296,6 +298,14 @@ export default function Home() {
       loadData('BS', bsYear);
     }
   }, [bsYear]);
+
+  useEffect(() => {
+    if (tabTypes[activeTab] === 'CF') {
+      loadData('CF', cfYear);
+      // 2025년일 때는 접힌 상태, 2026년일 때는 펼쳐진 상태
+      setCfMonthsCollapsed(cfYear === 2025);
+    }
+  }, [cfYear]);
 
   // 기준월 변경 시 데이터 리로드 (PL 2025년만)
   useEffect(() => {
@@ -333,14 +343,19 @@ export default function Home() {
 
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error('데이터를 불러올 수 없습니다.');
+        const errorData = await response.json().catch(() => ({ error: '데이터를 불러올 수 없습니다.' }));
+        throw new Error(errorData.error || '데이터를 불러올 수 없습니다.');
       }
 
       const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error);
+      }
       setPlData(result.rows);
     } catch (err) {
       console.error(err);
-      setError('브랜드별 손익 데이터를 불러오는데 실패했습니다.');
+      const errorMessage = err instanceof Error ? err.message : '브랜드별 손익 데이터를 불러오는데 실패했습니다.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -349,8 +364,8 @@ export default function Home() {
   // 월 컬럼 (1월~12월)
   const monthColumns = ['계정과목', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
   
-  // CF 컬럼 (합계 포함)
-  const cfColumns = [...monthColumns, '2025년(합계)'];
+  // CF 컬럼 (합계 포함) - 동적으로 생성
+  const cfColumns = [...monthColumns, `${cfYear}년(합계)`];
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -478,8 +493,7 @@ export default function Home() {
           <div>
             <div className="bg-gray-100 border-b border-gray-300">
               <div className="flex items-center gap-4 px-6 py-3">
-                <span className="text-sm font-medium text-gray-700">2025년</span>
-                <BaseMonthSelector baseMonth={cfBaseMonth} onChange={setCfBaseMonth} />
+                <YearTabs years={[2025, 2026]} activeYear={cfYear} onChange={setCfYear} />
                 <button
                   onClick={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
                   className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors shadow-sm"
@@ -498,9 +512,9 @@ export default function Home() {
                   showTotal 
                   isCashFlow={true}
                   compactLayout={true}
-                  baseMonth={cfBaseMonth}
                   monthsCollapsed={cfMonthsCollapsed}
                   onMonthsToggle={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
+                  currentYear={cfYear}
                 />
               </div>
             )}
