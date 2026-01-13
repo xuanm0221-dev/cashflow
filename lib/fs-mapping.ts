@@ -753,7 +753,7 @@ export function calculateComparisonDataBS(
   previousYearData: TableRow[],
   currentYear: number
 ): TableRow[] {
-  const baseMonth = 11; // 고정: 11월
+  const baseMonth = 12; // 고정: 12월
   
   // 계정별 매핑
   const prevAccountMap = new Map<string, TableRow>();

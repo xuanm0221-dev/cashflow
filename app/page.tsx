@@ -431,7 +431,7 @@ export default function Home() {
                     data={bsData} 
                     columns={monthColumns} 
                     showComparisons={bsYear === 2025 || bsYear === 2026}
-                    baseMonth={11}
+                    baseMonth={12}
                     isBalanceSheet={true}
                     currentYear={bsYear}
                     monthsCollapsed={bsMonthsCollapsed}
@@ -457,7 +457,7 @@ export default function Home() {
                       data={workingCapitalData} 
                       columns={monthColumns} 
                       showComparisons={bsYear === 2025 || bsYear === 2026}
-                      baseMonth={11}
+                      baseMonth={12}
                       isBalanceSheet={true}
                       currentYear={bsYear}
                       monthsCollapsed={bsMonthsCollapsed}
