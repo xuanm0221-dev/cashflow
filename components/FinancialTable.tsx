@@ -187,12 +187,13 @@ export default function FinancialTable({
     const accountCol = [columns[0]]; // "계정과목"
     
     if (isCashFlow) {
-      // 현금흐름표: 계정과목 | 2024년 | 1월~12월 | {currentYear}년(합계) | YoY
+      // 현금흐름표: 계정과목 | 2024년 or 2025년 | 1월~12월 | {currentYear}년(합계) | YoY
       const totalColumnHeader = currentYear ? `${currentYear}년(합계)` : '2025년(합계)';
+      const prevYearHeader = currentYear === 2026 ? '2025년' : '2024년';
       if (monthsCollapsed) {
         return [
           ...accountCol,
-          '2024년',
+          prevYearHeader,
           '', // 빈 컬럼
           totalColumnHeader,
           'YoY',
@@ -201,7 +202,7 @@ export default function FinancialTable({
         const monthCols = columns.slice(1, 13); // 1월~12월
         return [
           ...accountCol,
-          '2024년',
+          prevYearHeader,
           ...monthCols,
           totalColumnHeader,
           'YoY',
