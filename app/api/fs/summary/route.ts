@@ -164,11 +164,11 @@ function generateSummary(
         ]
       },
       브랜드포트폴리오: {
-        MLB장종: [
+        기존브랜드: [
           `• MLB: ${toKWithComma(mlb25)}K (${((mlb25 / tag매출25) * 100).toFixed(1)}%)`,
           `• KIDS: ${toKWithComma(kids25)}K (${((kids25 / tag매출25) * 100).toFixed(1)}%)`
         ],
-        신규브랜드성장: [
+        신규브랜드: [
           `• Discovery: ${discovery증가율 > 0 ? '+' : ''}${discovery증가율.toFixed(0)}% (${toKWithComma(discovery25)}K)`
         ]
       }
