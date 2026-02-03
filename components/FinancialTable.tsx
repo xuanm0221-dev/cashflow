@@ -23,6 +23,8 @@ interface FinancialTableProps {
   showBrandBreakdown?: boolean; // 브랜드별 손익 보기 모드 (법인 선택 시 항상 true)
   hideYtd?: boolean; // YTD 숨기기
   onHideYtdToggle?: () => void; // YTD 숨기기 토글 핸들러
+  allRowsCollapsed?: boolean; // 모든 행 접기 상태 (외부 제어)
+  onAllRowsToggle?: () => void; // 모든 행 접기/펼치기 토글 핸들러
 }
 
 export default function FinancialTable({ 
@@ -44,10 +46,14 @@ export default function FinancialTable({
   showBrandBreakdown = false,
   hideYtd = false,
   onHideYtdToggle,
+  allRowsCollapsed: externalAllRowsCollapsed,
+  onAllRowsToggle,
 }: FinancialTableProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [internalMonthsCollapsed, setInternalMonthsCollapsed] = useState<boolean>(true);
-  const [allRowsCollapsed, setAllRowsCollapsed] = useState<boolean>(true);
+  const [internalAllRowsCollapsed, setInternalAllRowsCollapsed] = useState<boolean>(true);
+  const isAllRowsControlled = externalAllRowsCollapsed !== undefined && onAllRowsToggle !== undefined;
+  const allRowsCollapsed = isAllRowsControlled ? externalAllRowsCollapsed : internalAllRowsCollapsed;
   
   // 브랜드별 컬럼 접기/펼치기 상태 (3가지 독립적)
   const [brandMonthCollapsed, setBrandMonthCollapsed] = useState<boolean>(true); // 당월
@@ -79,17 +85,27 @@ export default function FinancialTable({
 
   // 모든 행 접기/펼치기
   const toggleAllRows = () => {
-    if (allRowsCollapsed) {
-      // 모두 펼치기
-      setCollapsed(new Set());
-      setAllRowsCollapsed(false);
+    if (isAllRowsControlled) {
+      onAllRowsToggle!();
     } else {
-      // 모두 접기 (그룹인 행만)
-      const allGroups = data.filter(row => row.isGroup).map(row => row.account);
-      setCollapsed(new Set(allGroups));
-      setAllRowsCollapsed(true);
+      if (allRowsCollapsed) {
+        setCollapsed(new Set());
+        setInternalAllRowsCollapsed(false);
+      } else {
+        const allGroups = data.filter(row => row.isGroup).map(row => row.account);
+        setCollapsed(new Set(allGroups));
+        setInternalAllRowsCollapsed(true);
+      }
     }
   };
+
+  // 외부 제어 시 allRowsCollapsed에 맞춰 collapsed 동기화
+  useEffect(() => {
+    if (isAllRowsControlled) {
+      const allGroups = data.filter(row => row.isGroup).map(row => row.account);
+      setCollapsed(allRowsCollapsed ? new Set(allGroups) : new Set());
+    }
+  }, [isAllRowsControlled, allRowsCollapsed, data]);
 
   // 표시할 행 필터링 (접힌 그룹의 자식은 숨김)
   const visibleRows = useMemo(() => {
@@ -332,15 +348,17 @@ export default function FinancialTable({
 
   return (
     <div>
-      {/* 컨트롤 버튼들 */}
+      {/* 컨트롤 버튼들 (외부에서 allRowsCollapsed/onAllRowsToggle 넘기면 첫 버튼은 숨김) */}
+      {(!isAllRowsControlled || showComparisons || onHideYtdToggle) && (
       <div className="mb-4 flex items-center gap-2">
-        {/* 모든 행 접기/펼치기 버튼 */}
-        <button
-          onClick={toggleAllRows}
-          className="px-4 py-2 text-sm font-medium rounded bg-gray-600 text-white hover:bg-gray-700 transition-colors"
-        >
-          {allRowsCollapsed ? '펼치기 ▼' : '접기 ▲'}
-        </button>
+        {!isAllRowsControlled && (
+          <button
+            onClick={toggleAllRows}
+            className="px-4 py-2 text-sm font-medium rounded bg-gray-600 text-white hover:bg-gray-700 transition-colors"
+          >
+            {allRowsCollapsed ? '펼치기 ▼' : '접기 ▲'}
+          </button>
+        )}
         
         {/* 월 컬럼 토글 버튼 (PL 2025년만) */}
         {showComparisons && (
@@ -367,6 +385,7 @@ export default function FinancialTable({
           </button>
         )}
       </div>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-300 shadow-sm">
         <div 

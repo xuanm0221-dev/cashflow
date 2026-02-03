@@ -12,6 +12,8 @@ export default function Home() {
   const [cfYear, setCfYear] = useState<number>(2026);
   const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(false); // 현금흐름표 월별 접기 (기본값: 펼침)
   const [workingCapitalMonthsCollapsed, setWorkingCapitalMonthsCollapsed] = useState<boolean>(false); // 운전자본표 월별 접기 (기본값: 펼침)
+  const [cfAllRowsCollapsed, setCfAllRowsCollapsed] = useState<boolean>(true); // 현금흐름표 모든 행 접기
+  const [wcAllRowsCollapsed, setWcAllRowsCollapsed] = useState<boolean>(true); // 운전자본표 모든 행 접기
   const [cfData, setCfData] = useState<TableRow[] | null>(null);
   const [workingCapitalData, setWorkingCapitalData] = useState<TableRow[] | null>(null);
   const [creditData, setCreditData] = useState<CreditData | null>(null);
@@ -100,7 +102,7 @@ export default function Home() {
         {activeTab === 0 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300">
-              <div className="flex items-center justify-between px-6 py-3">
+              <div className="flex items-center gap-4 px-6 py-3">
                 <YearTabs years={[2025, 2026]} activeYear={cfYear} onChange={setCfYear} />
                 <button
                   onClick={() => {
@@ -119,13 +121,13 @@ export default function Home() {
             {cfData && !loading && (
               <>
                 <div className="px-6 pt-6 pb-2">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2 mb-4">
                     <h2 className="text-lg font-bold text-gray-800">현금흐름표</h2>
                     <button
-                      onClick={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
-                      className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors shadow-sm"
+                      onClick={() => setCfAllRowsCollapsed(!cfAllRowsCollapsed)}
+                      className="px-4 py-2 text-sm font-medium rounded bg-gray-600 text-white hover:bg-gray-700 transition-colors"
                     >
-                      {cfMonthsCollapsed ? '표 펼치기 ▶' : '표 접기 ◀'}
+                      {cfAllRowsCollapsed ? '펼치기 ▼' : '접기 ▲'}
                     </button>
                   </div>
                   <FinancialTable 
@@ -136,6 +138,8 @@ export default function Home() {
                     monthsCollapsed={cfMonthsCollapsed}
                     onMonthsToggle={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
                     currentYear={cfYear}
+                    allRowsCollapsed={cfAllRowsCollapsed}
+                    onAllRowsToggle={() => setCfAllRowsCollapsed(!cfAllRowsCollapsed)}
                   />
                 </div>
                 
@@ -143,13 +147,13 @@ export default function Home() {
                 {workingCapitalData && (
                   <div className="px-6 pb-6">
                     <div className="mb-4 border-t-2 border-gray-400 pt-6">
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2 mb-4">
                         <h2 className="text-lg font-bold text-gray-800">운전자본표</h2>
                         <button
-                          onClick={() => setWorkingCapitalMonthsCollapsed(!workingCapitalMonthsCollapsed)}
-                          className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors shadow-sm"
+                          onClick={() => setWcAllRowsCollapsed(!wcAllRowsCollapsed)}
+                          className="px-4 py-2 text-sm font-medium rounded bg-gray-600 text-white hover:bg-gray-700 transition-colors"
                         >
-                          {workingCapitalMonthsCollapsed ? '표 펼치기 ▶' : '표 접기 ◀'}
+                          {wcAllRowsCollapsed ? '펼치기 ▼' : '접기 ▲'}
                         </button>
                       </div>
                     </div>
@@ -161,6 +165,8 @@ export default function Home() {
                       monthsCollapsed={workingCapitalMonthsCollapsed}
                       onMonthsToggle={() => setWorkingCapitalMonthsCollapsed(!workingCapitalMonthsCollapsed)}
                       currentYear={cfYear}
+                      allRowsCollapsed={wcAllRowsCollapsed}
+                      onAllRowsToggle={() => setWcAllRowsCollapsed(!wcAllRowsCollapsed)}
                     />
                   </div>
                 )}
