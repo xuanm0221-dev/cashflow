@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Papa from 'papaparse';
 import iconv from 'iconv-lite';
-import { FinancialData } from './types';
+import { FinancialData, CreditRecoveryRawData } from './types';
 import { cleanNumericValue, parseMonthColumn } from './utils';
 
 // CSV 파일 읽기 (인코딩 자동 감지)
@@ -476,4 +476,49 @@ export async function readWorkingCapitalStatementCSV(filePath: string, year: num
   }
 
   return result;
+}
+
+// 여신회수계획 CSV 읽기
+export async function readCreditRecoveryCSV(filePath: string): Promise<CreditRecoveryRawData> {
+  let content: string;
+  
+  try {
+    // UTF-8 시도
+    content = fs.readFileSync(filePath, 'utf-8');
+  } catch (err) {
+    try {
+      // CP949(EUC-KR) 시도
+      const buffer = fs.readFileSync(filePath);
+      content = iconv.decode(buffer, 'cp949');
+    } catch (err2) {
+      throw new Error(`CSV 파일을 읽을 수 없습니다: ${filePath}`);
+    }
+  }
+
+  // CSV 파싱
+  const parsed = Papa.parse<string[]>(content, {
+    header: false,
+    skipEmptyLines: true,
+  });
+
+  if (parsed.errors.length > 0) {
+    console.error('CSV 파싱 에러:', parsed.errors);
+  }
+
+  const rows = parsed.data;
+  if (rows.length < 2) {
+    throw new Error('CSV 파일이 비어있거나 형식이 잘못되었습니다.');
+  }
+
+  // 두 번째 행이 데이터
+  const dataRow = rows[1];
+  
+  return {
+    대리상선수금: cleanNumericValue(dataRow[0]),
+    대리상채권: cleanNumericValue(dataRow[1]),
+    회수1: cleanNumericValue(dataRow[2]),
+    회수2: cleanNumericValue(dataRow[3]),
+    회수3: cleanNumericValue(dataRow[4]),
+    회수4: cleanNumericValue(dataRow[5]),
+  };
 }

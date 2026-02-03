@@ -53,7 +53,7 @@ export interface BrandComparisonData {
 }
 
 // 탭 타입
-export type TabType = 'CF' | 'CREDIT' | 'WORKING_CAPITAL' | 'WORKING_CAPITAL_STATEMENT';
+export type TabType = 'CF' | 'CREDIT' | 'WORKING_CAPITAL' | 'WORKING_CAPITAL_STATEMENT' | 'CREDIT_RECOVERY';
 
 // 월 데이터 맵
 export type MonthDataMap = Map<string, number[]>; // account -> [month1, month2, ..., month12]
@@ -86,4 +86,20 @@ export interface CreditData {
     top1Ratio: number; // 최대 거래처 비율
     riskLevel: '높음' | '낮음';
   };
+}
+
+// 여신회수 계획 Raw 데이터 (CSV에서 직접 읽은 데이터)
+export interface CreditRecoveryRawData {
+  대리상선수금: number;
+  대리상채권: number;
+  회수1: number;
+  회수2: number;
+  회수3: number;
+  회수4: number;
+}
+
+// 여신회수 계획 데이터 (Raw 데이터 + 메타데이터)
+export interface CreditRecoveryData extends CreditRecoveryRawData {
+  baseYearMonth: string; // 기준 연월 (예: "25.12")
+  headers: string[]; // 동적 헤더 ["26.01", "26.02", "26.03", "26.04"]
 }

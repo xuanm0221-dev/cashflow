@@ -53,6 +53,32 @@ export function formatPercent(
   return absPercentValue + '%';
 }
 
+// 백만 단위 포맷팅 (분석용 - M위안)
+export function formatMillionYuan(
+  value: number | null | undefined,
+  showSign: boolean = false
+): string {
+  if (value === null || value === undefined || isNaN(value)) {
+    return '-';
+  }
+  // 백만 단위로 변환 (÷ 1,000,000)
+  const mValue = value / 1000000;
+  const absValue = Math.abs(mValue);
+  const formatted = absValue >= 100 
+    ? absValue.toFixed(0) 
+    : absValue >= 10 
+    ? absValue.toFixed(1) 
+    : absValue.toFixed(2);
+  
+  if (value < 0) {
+    return showSign ? '-' + formatted + 'M위안' : '(' + formatted + 'M위안)';
+  }
+  if (showSign && value > 0) {
+    return '+' + formatted + 'M위안';
+  }
+  return formatted + 'M위안';
+}
+
 // 천단위 콤마 제거 및 숫자 파싱
 export function cleanNumericValue(value: string | number): number {
   if (typeof value === 'number') return value;

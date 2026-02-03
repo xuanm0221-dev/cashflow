@@ -5,24 +5,25 @@ import Tabs from '@/components/Tabs';
 import YearTabs from '@/components/YearTabs';
 import FinancialTable from '@/components/FinancialTable';
 import CreditStatus from '@/components/CreditStatus';
-import { TableRow, CreditData, TabType } from '@/lib/types';
+import { TableRow, CreditData, CreditRecoveryData, TabType } from '@/lib/types';
 import {
   analyzeCashFlowData,
   analyzeWorkingCapitalData,
   generateCashFlowInsights,
   generateCFOQA,
 } from '@/lib/analysis';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, formatMillionYuan } from '@/lib/utils';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<number>(0);
   const [wcYear, setWcYear] = useState<number>(2026);
-  const [workingCapitalMonthsCollapsed, setWorkingCapitalMonthsCollapsed] = useState<boolean>(false);
+  const [workingCapitalMonthsCollapsed, setWorkingCapitalMonthsCollapsed] = useState<boolean>(true);
   const [wcAllRowsCollapsed, setWcAllRowsCollapsed] = useState<boolean>(true);
   const [wcStatementAllRowsCollapsed, setWcStatementAllRowsCollapsed] = useState<boolean>(true);
   const [cfData, setCfData] = useState<TableRow[] | null>(null);
   const [wcStatementData, setWcStatementData] = useState<TableRow[] | null>(null);
   const [creditData, setCreditData] = useState<CreditData | null>(null);
+  const [creditRecoveryData, setCreditRecoveryData] = useState<CreditRecoveryData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [cfoQAExpanded, setCfoQAExpanded] = useState<boolean>(false);
@@ -43,6 +44,8 @@ export default function Home() {
         url = `/api/fs/cf?year=${year}`;
       } else if (type === 'WORKING_CAPITAL_STATEMENT') {
         url = `/api/fs/working-capital-statement?year=${year}`;
+      } else if (type === 'CREDIT_RECOVERY') {
+        url = `/api/fs/credit-recovery`;
       }
 
       if (!url) return;
@@ -61,6 +64,8 @@ export default function Home() {
         setWcStatementData(result.rows);
       } else if (type === 'CREDIT') {
         setCreditData(result);
+      } else if (type === 'CREDIT_RECOVERY') {
+        setCreditRecoveryData(result);
       }
     } catch (err) {
       console.error(err);
@@ -76,6 +81,7 @@ export default function Home() {
     if (activeTab === 0) {
       if (!cfData) loadData('CF', wcYear);
       if (!wcStatementData) loadData('WORKING_CAPITAL_STATEMENT', wcYear);
+      if (!creditRecoveryData) loadData('CREDIT_RECOVERY');
     } else if (activeTab === 1 && !creditData) {
       loadData('CREDIT');
     }
@@ -182,21 +188,69 @@ export default function Home() {
                           />
                         </div>
                       )}
+                      {creditRecoveryData && (
+                        <div className="mt-8 pt-6 border-t-2 border-gray-400">
+                          <h2 className="text-lg font-bold text-gray-800 mb-4">
+                            대리상 여신회수 계획 ({creditRecoveryData.baseYearMonth} 기준)
+                          </h2>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border border-gray-300">
+                              <thead>
+                                <tr>
+                                  <th className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 bg-highlight-yellow">
+                                    대리상선수금
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 bg-highlight-yellow">
+                                    대리상 채권
+                                  </th>
+                                  {creditRecoveryData.headers.map((header, idx) => (
+                                    <th key={idx} className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100">
+                                      {header}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                    {formatNumber(creditRecoveryData.대리상선수금, false, false)}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                    {formatNumber(creditRecoveryData.대리상채권, false, false)}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                    {formatNumber(creditRecoveryData.회수1, true, false)}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                    {formatNumber(creditRecoveryData.회수2, true, false)}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                    {formatNumber(creditRecoveryData.회수3, true, false)}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                    {formatNumber(creditRecoveryData.회수4, true, false)}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <aside className="flex-1 min-w-0 rounded-lg border border-gray-200 bg-white p-6 shadow-sm overflow-y-auto max-h-[calc(100vh-200px)]">
-                      <h3 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b">설명과 분석</h3>
+                    <aside className="flex-1 min-w-0 rounded-lg border border-gray-200 bg-gray-50 p-6 shadow-sm overflow-y-auto max-h-[calc(100vh-200px)]">
+                      <h3 className="text-xl font-bold text-gray-900 mb-6 pb-3 border-b-2 border-gray-300">설명과 분석</h3>
                       
                       {analysisResults ? (
-                        <div className="space-y-6">
+                        <div className="space-y-4">
                           {/* 핵심 인사이트 */}
-                          <section>
-                            <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                              <span className="w-1 h-4 bg-blue-600 mr-2"></span>
+                          <section className="bg-white rounded-lg border border-blue-100 shadow-sm p-4">
+                            <h4 className="text-base font-semibold text-gray-800 mb-3 flex items-center">
+                              <span className="w-1.5 h-5 bg-blue-600 mr-2.5 rounded"></span>
                               핵심 인사이트
                             </h4>
-                            <ul className="space-y-2">
+                            <ul className="space-y-3">
                               {analysisResults.insights.keyInsights.map((insight, idx) => (
-                                <li key={idx} className="text-sm text-gray-700 leading-relaxed pl-3 border-l-2 border-blue-200">
+                                <li key={idx} className="text-base text-gray-700 leading-relaxed pl-4 border-l-3 border-blue-200">
                                   {insight}
                                 </li>
                               ))}
@@ -205,22 +259,22 @@ export default function Home() {
 
                           {/* 현금흐름표 상세 */}
                           {analysisResults.cfAnalysis.categories.length > 0 && (
-                            <section>
-                              <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                <span className="w-1 h-4 bg-green-600 mr-2"></span>
+                            <section className="bg-white rounded-lg border border-green-100 shadow-sm p-4">
+                              <h4 className="text-base font-semibold text-gray-800 mb-3 flex items-center">
+                                <span className="w-1.5 h-5 bg-green-600 mr-2.5 rounded"></span>
                                 {wcYear}년 현금흐름표
                               </h4>
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 {analysisResults.cfAnalysis.categories.map((cat, idx) => (
-                                  <div key={idx} className="text-sm">
-                                    <div className="font-medium text-gray-800">
+                                  <div key={idx} className="text-base pl-2">
+                                    <div className="font-semibold text-gray-900 mb-1">
                                       {cat.account}
                                     </div>
-                                    <div className="text-gray-600 pl-3">
-                                      연간 {formatNumber(cat.annualTotal, false, false)}천위안
+                                    <div className="text-gray-700 pl-4">
+                                      연간 <span className="font-medium">{formatMillionYuan(cat.annualTotal)}</span>
                                       {cat.yoyAbsolute !== null && (
-                                        <span className={cat.yoyAbsolute > 0 ? 'text-blue-600' : 'text-red-600'}>
-                                          {' '}(전년 대비 {formatNumber(Math.abs(cat.yoyAbsolute), false, false)}천위안
+                                        <span className={cat.yoyAbsolute > 0 ? 'text-blue-600 font-medium' : 'text-red-600 font-medium'}>
+                                          {' '}(전년 대비 {formatMillionYuan(Math.abs(cat.yoyAbsolute))}
                                           {cat.yoyPercent !== null && `, ${cat.yoyPercent > 0 ? '+' : ''}${cat.yoyPercent.toFixed(1)}%`})
                                         </span>
                                       )}
@@ -233,22 +287,22 @@ export default function Home() {
 
                           {/* 운전자본표 상세 */}
                           {analysisResults.wcAnalysis.categories.length > 0 && (
-                            <section>
-                              <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                <span className="w-1 h-4 bg-purple-600 mr-2"></span>
+                            <section className="bg-white rounded-lg border border-purple-100 shadow-sm p-4">
+                              <h4 className="text-base font-semibold text-gray-800 mb-3 flex items-center">
+                                <span className="w-1.5 h-5 bg-purple-600 mr-2.5 rounded"></span>
                                 {wcYear}년 운전자본표
                               </h4>
                               <div className="space-y-3">
                                 {analysisResults.wcAnalysis.categories.map((cat, idx) => (
-                                  <div key={idx} className="text-sm">
-                                    <div className="font-medium text-gray-800">
+                                  <div key={idx} className="text-base pl-2">
+                                    <div className="font-semibold text-gray-900 mb-1">
                                       {cat.account}
                                     </div>
-                                    <div className="text-gray-600 pl-3">
-                                      연간 {formatNumber(cat.annualTotal, false, false)}천위안
+                                    <div className="text-gray-700 pl-4">
+                                      연간 <span className="font-medium">{formatMillionYuan(cat.annualTotal)}</span>
                                       {cat.yoyAbsolute !== null && (
-                                        <span className={cat.yoyAbsolute < 0 ? 'text-blue-600' : 'text-red-600'}>
-                                          {' '}(전년 대비 {formatNumber(Math.abs(cat.yoyAbsolute), false, false)}천위안
+                                        <span className={cat.yoyAbsolute < 0 ? 'text-blue-600 font-medium' : 'text-red-600 font-medium'}>
+                                          {' '}(전년 대비 {formatMillionYuan(Math.abs(cat.yoyAbsolute))}
                                           {cat.yoyPercent !== null && `, ${cat.yoyPercent > 0 ? '+' : ''}${cat.yoyPercent.toFixed(1)}%`})
                                         </span>
                                       )}
@@ -257,20 +311,20 @@ export default function Home() {
                                 ))}
                                 
                                 {/* 항목별 인사이트 */}
-                                <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                <div className="mt-4 pt-4 border-t border-gray-200 space-y-2.5">
                                   {analysisResults.wcAnalysis.arInsight && (
-                                    <p className="text-xs text-gray-600 leading-relaxed">
-                                      <span className="font-medium">매출채권:</span> {analysisResults.wcAnalysis.arInsight}
+                                    <p className="text-sm text-gray-700 leading-relaxed">
+                                      <span className="font-semibold text-gray-900">매출채권:</span> {analysisResults.wcAnalysis.arInsight}
                                     </p>
                                   )}
                                   {analysisResults.wcAnalysis.inventoryInsight && (
-                                    <p className="text-xs text-gray-600 leading-relaxed">
-                                      <span className="font-medium">재고자산:</span> {analysisResults.wcAnalysis.inventoryInsight}
+                                    <p className="text-sm text-gray-700 leading-relaxed">
+                                      <span className="font-semibold text-gray-900">재고자산:</span> {analysisResults.wcAnalysis.inventoryInsight}
                                     </p>
                                   )}
                                   {analysisResults.wcAnalysis.apInsight && (
-                                    <p className="text-xs text-gray-600 leading-relaxed">
-                                      <span className="font-medium">매입채무:</span> {analysisResults.wcAnalysis.apInsight}
+                                    <p className="text-sm text-gray-700 leading-relaxed">
+                                      <span className="font-semibold text-gray-900">매입채무:</span> {analysisResults.wcAnalysis.apInsight}
                                     </p>
                                   )}
                                 </div>
@@ -280,14 +334,14 @@ export default function Home() {
 
                           {/* 리스크 요인 */}
                           {analysisResults.insights.riskFactors.length > 0 && (
-                            <section>
-                              <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                <span className="w-1 h-4 bg-yellow-600 mr-2"></span>
+                            <section className="bg-white rounded-lg border border-yellow-100 shadow-sm p-4">
+                              <h4 className="text-base font-semibold text-gray-800 mb-3 flex items-center">
+                                <span className="w-1.5 h-5 bg-yellow-600 mr-2.5 rounded"></span>
                                 리스크 요인
                               </h4>
-                              <ul className="space-y-2">
+                              <ul className="space-y-3">
                                 {analysisResults.insights.riskFactors.map((risk, idx) => (
-                                  <li key={idx} className="text-sm text-gray-700 leading-relaxed pl-3 border-l-2 border-yellow-200">
+                                  <li key={idx} className="text-base text-gray-700 leading-relaxed pl-4 border-l-3 border-yellow-200">
                                     {risk}
                                   </li>
                                 ))}
@@ -297,14 +351,14 @@ export default function Home() {
 
                           {/* 관리 포인트 */}
                           {analysisResults.insights.actionItems.length > 0 && (
-                            <section>
-                              <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                <span className="w-1 h-4 bg-orange-600 mr-2"></span>
+                            <section className="bg-white rounded-lg border border-orange-100 shadow-sm p-4">
+                              <h4 className="text-base font-semibold text-gray-800 mb-3 flex items-center">
+                                <span className="w-1.5 h-5 bg-orange-600 mr-2.5 rounded"></span>
                                 관리 포인트
                               </h4>
-                              <ul className="space-y-2">
+                              <ul className="space-y-3">
                                 {analysisResults.insights.actionItems.map((action, idx) => (
-                                  <li key={idx} className="text-sm text-gray-700 leading-relaxed pl-3 border-l-2 border-orange-200">
+                                  <li key={idx} className="text-base text-gray-700 leading-relaxed pl-4 border-l-3 border-orange-200">
                                     {action}
                                   </li>
                                 ))}
@@ -313,28 +367,28 @@ export default function Home() {
                           )}
 
                           {/* CFO 주요 질문 (접기/펼치기) */}
-                          <section>
+                          <section className="bg-white rounded-lg border border-red-100 shadow-sm p-4">
                             <button
                               onClick={() => setCfoQAExpanded(!cfoQAExpanded)}
-                              className="w-full text-left text-sm font-bold text-gray-700 mb-3 flex items-center justify-between hover:text-gray-900 transition-colors"
+                              className="w-full text-left text-base font-semibold text-gray-800 mb-3 flex items-center justify-between hover:text-gray-900 transition-colors"
                             >
                               <span className="flex items-center">
-                                <span className="w-1 h-4 bg-red-600 mr-2"></span>
+                                <span className="w-1.5 h-5 bg-red-600 mr-2.5 rounded"></span>
                                 CFO 주요 질문
                               </span>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-sm text-gray-500 font-normal">
                                 {cfoQAExpanded ? '▲ 접기' : '▼ 펼치기'}
                               </span>
                             </button>
                             
                             {cfoQAExpanded && (
-                              <div className="space-y-4 pl-3 border-l-2 border-red-200">
+                              <div className="space-y-4 pl-4 border-l-3 border-red-200 pt-2">
                                 {analysisResults.cfoQA.map((qa, idx) => (
                                   <div key={idx}>
-                                    <div className="text-sm font-medium text-gray-800 mb-1">
+                                    <div className="text-base font-semibold text-gray-900 mb-2">
                                       Q{idx + 1}. {qa.question}
                                     </div>
-                                    <div className="text-sm text-gray-600 leading-relaxed pl-4">
+                                    <div className="text-base text-gray-700 leading-relaxed pl-5">
                                       {qa.answer}
                                     </div>
                                   </div>
@@ -399,6 +453,54 @@ export default function Home() {
                           allRowsCollapsed={wcStatementAllRowsCollapsed}
                           onAllRowsToggle={() => setWcStatementAllRowsCollapsed(!wcStatementAllRowsCollapsed)}
                         />
+                      </div>
+                    )}
+                    {creditRecoveryData && (
+                      <div className="mt-8 pt-6 border-t-2 border-gray-400">
+                        <h2 className="text-lg font-bold text-gray-800 mb-4">
+                          대리상 여신회수 계획 ({creditRecoveryData.baseYearMonth} 기준)
+                        </h2>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full border border-gray-300">
+                            <thead>
+                              <tr>
+                                <th className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 bg-highlight-yellow">
+                                  대리상선수금
+                                </th>
+                                <th className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 bg-highlight-yellow">
+                                  대리상 채권
+                                </th>
+                                {creditRecoveryData.headers.map((header, idx) => (
+                                  <th key={idx} className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100">
+                                    {header}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                  {formatNumber(creditRecoveryData.대리상선수금, false, false)}
+                                </td>
+                                <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                  {formatNumber(creditRecoveryData.대리상채권, false, false)}
+                                </td>
+                                <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                  {formatNumber(creditRecoveryData.회수1, true, false)}
+                                </td>
+                                <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                  {formatNumber(creditRecoveryData.회수2, true, false)}
+                                </td>
+                                <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                  {formatNumber(creditRecoveryData.회수3, true, false)}
+                                </td>
+                                <td className="border border-gray-300 px-4 py-2 text-sm text-right">
+                                  {formatNumber(creditRecoveryData.회수4, true, false)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </>
