@@ -36,26 +36,35 @@ export async function GET(request: NextRequest) {
     const baseYear = parseInt(match[1], 10);
     const baseMonth = parseInt(match[2], 10);
     
-    // 다음 4개월 계산
-    const headers: string[] = [];
-    for (let i = 1; i <= 4; i++) {
-      let year = baseYear;
-      let month = baseMonth + i;
-      
-      if (month > 12) {
-        year += Math.floor((month - 1) / 12);
-        month = ((month - 1) % 12) + 1;
-      }
-      
-      headers.push(`${year.toString().padStart(2, '0')}.${month.toString().padStart(2, '0')}`);
-    }
-    
     const data = await readCreditRecoveryCSV(filePath);
     
+    // 0이 아닌 회수 데이터와 해당 헤더만 필터링
+    const filteredRecoveries: number[] = [];
+    const filteredHeaders: string[] = [];
+    
+    data.recoveries.forEach((amount, idx) => {
+      if (amount !== 0) {
+        filteredRecoveries.push(amount);
+        
+        // 월 계산
+        let year = baseYear;
+        let month = baseMonth + idx + 1;
+        
+        if (month > 12) {
+          year += Math.floor((month - 1) / 12);
+          month = ((month - 1) % 12) + 1;
+        }
+        
+        filteredHeaders.push(`${year.toString().padStart(2, '0')}.${month.toString().padStart(2, '0')}`);
+      }
+    });
+    
     return NextResponse.json({
-      ...data,
+      대리상선수금: data.대리상선수금,
+      대리상채권: data.대리상채권,
+      recoveries: filteredRecoveries,
       baseYearMonth: `${baseYear.toString().padStart(2, '0')}.${baseMonth.toString().padStart(2, '0')}`,
-      headers,
+      headers: filteredHeaders,
     });
   } catch (error) {
     console.error('여신회수 계획 데이터 로드 실패:', error);

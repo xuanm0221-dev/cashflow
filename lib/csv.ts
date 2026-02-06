@@ -297,35 +297,35 @@ export async function readCreditCSV(filePath: string) {
     }
   }
 
-  // CSV 파싱
-  const parsed = Papa.parse<string[]>(content, {
-    header: false,
+  // 숫자 파싱 함수 (콤마, 공백, 따옴표 제거)
+  const parse = (str: string): number => {
+    if (!str || str === '-') return 0;
+    const cleaned = str.replace(/[",\s]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // CSV 파싱 - 헤더를 컬럼명으로 사용
+  const parsed = Papa.parse<Record<string, string>>(content, {
+    header: true,
     skipEmptyLines: true,
+    transformHeader: (header) => header.trim(), // 헤더 공백 제거
   });
 
-  const rows = parsed.data;
-  if (rows.length < 2) {
+  if (parsed.data.length === 0) {
     throw new Error('CSV 데이터가 부족합니다.');
   }
 
-  // 첫 행은 헤더, 둘째 행부터 데이터
+  // 컬럼명으로 데이터 읽기
   const dealers: Array<{ name: string; 외상매출금: number; 선수금: number }> = [];
 
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    if (row.length < 2) continue;
+  for (const row of parsed.data) {
+    const name = row["대리상 명칭"]?.trim() || '';
+    const 외상매출금Str = row["외상매출금"]?.trim() || '0';
+    const 선수금Str = row["선수금"]?.trim() || '0';
 
-    const name = row[0]?.trim() || '';
-    const 외상매출금Str = row[1]?.trim() || '0';
-    const 선수금Str = row[2]?.trim() || '0';
-
-    // 숫자 파싱 (콤마, 공백, 따옴표 제거)
-    const parse = (str: string): number => {
-      if (!str || str === '-') return 0;
-      const cleaned = str.replace(/[",\s]/g, '');
-      const num = parseFloat(cleaned);
-      return isNaN(num) ? 0 : num;
-    };
+    // 빈 이름은 건너뛰기
+    if (!name) continue;
 
     dealers.push({
       name,
@@ -495,30 +495,38 @@ export async function readCreditRecoveryCSV(filePath: string): Promise<CreditRec
     }
   }
 
-  // CSV 파싱
-  const parsed = Papa.parse<string[]>(content, {
-    header: false,
+  // 헤더 기반 파싱
+  const parsed = Papa.parse<Record<string, string>>(content, {
+    header: true,
     skipEmptyLines: true,
+    transformHeader: (header) => header.trim(),
   });
 
   if (parsed.errors.length > 0) {
     console.error('CSV 파싱 에러:', parsed.errors);
   }
 
-  const rows = parsed.data;
-  if (rows.length < 2) {
-    throw new Error('CSV 파일이 비어있거나 형식이 잘못되었습니다.');
+  if (parsed.data.length === 0) {
+    throw new Error('CSV 데이터가 없습니다.');
   }
 
-  // 두 번째 행이 데이터
-  const dataRow = rows[1];
+  const row = parsed.data[0];
+  
+  // "회수" 패턴의 컬럼 동적 탐색
+  const recoveries: number[] = [];
+  const recoveryPattern = /^회수\d+$/;
+  
+  // 헤더 순서대로 회수 데이터 추출
+  for (const key of Object.keys(row)) {
+    if (recoveryPattern.test(key)) {
+      const amount = cleanNumericValue(row[key] || '0');
+      recoveries.push(amount);
+    }
+  }
   
   return {
-    대리상선수금: cleanNumericValue(dataRow[0]),
-    대리상채권: cleanNumericValue(dataRow[1]),
-    회수1: cleanNumericValue(dataRow[2]),
-    회수2: cleanNumericValue(dataRow[3]),
-    회수3: cleanNumericValue(dataRow[4]),
-    회수4: cleanNumericValue(dataRow[5]),
+    대리상선수금: cleanNumericValue(row['대리상선수금'] || '0'),
+    대리상채권: cleanNumericValue(row['대리상 채권'] || '0'),
+    recoveries,
   };
 }

@@ -67,6 +67,9 @@ export interface CreditDealer {
 }
 
 export interface CreditData {
+  baseYearMonth: string; // "26.01" 형식
+  baseYearFull: number;  // 2026
+  baseMonth: number;     // 1
   total: {
     외상매출금: number;
     선수금: number;
@@ -92,14 +95,11 @@ export interface CreditData {
 export interface CreditRecoveryRawData {
   대리상선수금: number;
   대리상채권: number;
-  회수1: number;
-  회수2: number;
-  회수3: number;
-  회수4: number;
+  recoveries: number[]; // 동적 배열로 변경
 }
 
 // 여신회수 계획 데이터 (Raw 데이터 + 메타데이터)
 export interface CreditRecoveryData extends CreditRecoveryRawData {
   baseYearMonth: string; // 기준 연월 (예: "25.12")
-  headers: string[]; // 동적 헤더 ["26.01", "26.02", "26.03", "26.04"]
+  headers: string[]; // 0이 아닌 회수에 해당하는 헤더만 포함
 }

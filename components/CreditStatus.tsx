@@ -1,22 +1,37 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { CreditData } from '@/lib/types';
+import { CreditData, CreditRecoveryData } from '@/lib/types';
 import { formatNumber } from '@/lib/utils';
 
 interface CreditStatusProps {
   data: CreditData;
+  recoveryData?: CreditRecoveryData;
 }
 
-export default function CreditStatus({ data }: CreditStatusProps) {
+export default function CreditStatus({ data, recoveryData }: CreditStatusProps) {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [wuhanMemo, setWuhanMemo] = useState<string>('');
   const [editingWuhan, setEditingWuhan] = useState<boolean>(false);
-  const [recoveryPlan, setRecoveryPlan] = useState<string>(
-    '여신회수: 12월 258m(회수 실적 282m), 1월 330m, 2월 190m, 3월 107m, 4월 10m'
-  );
-  const [editingRecovery, setEditingRecovery] = useState<boolean>(false);
   const [othersCollapsed, setOthersCollapsed] = useState<boolean>(true);
+
+  // 여신회수계획 자동 생성
+  const recoveryPlan = useMemo(() => {
+    if (!recoveryData) return '데이터 없음';
+
+    // 회수 데이터 포맷팅
+    const recoveries: string[] = [];
+    recoveryData.recoveries.forEach((amount, idx) => {
+      if (amount !== 0) {
+        const amountM = Math.round(amount / 1000000);
+        recoveries.push(`${recoveryData.headers[idx]} ${amountM}m`);
+      }
+    });
+
+    return recoveries.length > 0
+      ? `여신회수 계획 (${recoveryData.baseYearMonth} 기준): ${recoveries.join(', ')}`
+      : '회수 계획 없음';
+  }, [recoveryData]);
 
   // 비고 데이터 로드
   useEffect(() => {
@@ -28,9 +43,6 @@ export default function CreditStatus({ data }: CreditStatusProps) {
           if (data.remarks) {
             if (data.remarks.wuhanMemo) {
               setWuhanMemo(data.remarks.wuhanMemo);
-            }
-            if (data.remarks.recoveryPlan) {
-              setRecoveryPlan(data.remarks.recoveryPlan);
             }
           }
         }
@@ -46,7 +58,7 @@ export default function CreditStatus({ data }: CreditStatusProps) {
   const saveCreditRemarkDebounced = useMemo(() => {
     const timeouts: { [key: string]: NodeJS.Timeout } = {};
     
-    return async (key: 'wuhanMemo' | 'recoveryPlan', value: string) => {
+    return async (key: 'wuhanMemo', value: string) => {
       if (timeouts[key]) {
         clearTimeout(timeouts[key]);
       }
@@ -183,36 +195,13 @@ export default function CreditStatus({ data }: CreditStatusProps) {
               </td>
             </tr>
 
-            {/* 2. 여신회수계획 행 (편집 가능, 노란색) */}
+            {/* 2. 여신회수계획 행 (자동 생성, 노란색) */}
             <tr className="bg-yellow-50">
               <td 
                 colSpan={5} 
                 className="border border-gray-300 py-3 px-4 text-sm"
               >
-                {editingRecovery ? (
-                  <input
-                    type="text"
-                    value={recoveryPlan}
-                    onChange={(e) => {
-                      setRecoveryPlan(e.target.value);
-                      saveCreditRemarkDebounced('recoveryPlan', e.target.value);
-                    }}
-                    onBlur={() => setEditingRecovery(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') setEditingRecovery(false);
-                    }}
-                    className="w-full px-2 py-1 border border-yellow-400 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-yellow-50"
-                    autoFocus
-                  />
-                ) : (
-                  <span
-                    onClick={() => setEditingRecovery(true)}
-                    className="cursor-pointer hover:bg-yellow-100 px-2 py-1 rounded inline-block"
-                    title="클릭하여 편집"
-                  >
-                    {recoveryPlan}
-                  </span>
-                )}
+                {recoveryPlan}
               </td>
             </tr>
 
