@@ -830,8 +830,8 @@ export default function Home() {
                             )}
                           </div>
 
-                          {/* 2열 그리드: 리스크 요인 + 관리 포인트 */}
-                          <div className="grid grid-cols-2 gap-4">
+                          {/* 세로 배치: 리스크 요인 + 관리 포인트 */}
+                          <div className="space-y-4">
                             {/* 리스크 요인 */}
                             {displayAnalysis.riskFactors.length > 0 && (
                               <section className="bg-white rounded-lg border border-yellow-100 shadow-sm p-4">
