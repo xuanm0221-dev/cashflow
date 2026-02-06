@@ -7,14 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const year = searchParams.get('year') || '2026';
-    
-    // 2025년에는 데이터가 없으므로 404 반환
-    if (year === '2025') {
-      return NextResponse.json({ 
-        error: '2025년 데이터는 없습니다.' 
-      }, { status: 404 });
-    }
-    
+
     const csvPath = path.join(process.cwd(), '기타', `${year}.csv`);
     const rawData = await readBalanceCSV(csvPath);
     

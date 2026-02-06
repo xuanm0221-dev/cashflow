@@ -66,6 +66,7 @@ export default function Home() {
       const result = await response.json();
 
       if (!response.ok) {
+        if (type === 'BALANCE') setBalanceData(null);
         const message = result?.error || '데이터를 불러올 수 없습니다.';
         throw new Error(message);
       }
@@ -95,7 +96,7 @@ export default function Home() {
     if (activeTab === 0) {
       if (!cfData) loadData('CF', wcYear);
       if (!wcStatementData) loadData('WORKING_CAPITAL_STATEMENT', wcYear);
-      if (wcYear === 2026 && !balanceData) loadData('BALANCE', wcYear);
+      if (!balanceData) loadData('BALANCE', wcYear);
       if (!creditRecoveryData) loadData('CREDIT_RECOVERY');
     } else if (activeTab === 1) {
       if (!creditData) loadData('CREDIT');
@@ -107,11 +108,8 @@ export default function Home() {
     if (activeTab === 0) {
       loadData('CF', wcYear);
       loadData('WORKING_CAPITAL_STATEMENT', wcYear);
-      if (wcYear === 2026) {
-        loadData('BALANCE', wcYear);
-      } else {
-        setBalanceData(null);
-      }
+      setBalanceData(null);
+      loadData('BALANCE', wcYear);
     }
   }, [wcYear]);
 
@@ -486,8 +484,8 @@ export default function Home() {
                         </>
                       )}
                       
-                      {/* 현금잔액과 차입금잔액표 (2026년만) */}
-                      {wcYear === 2026 && balanceData && (
+                      {/* 현금잔액과 차입금잔액표 */}
+                      {balanceData && (
                         <div className="mt-8 pt-6 border-t-2 border-gray-400">
                           <h2 className="text-lg font-bold text-gray-800 mb-4">
                             현금잔액과 차입금잔액표
@@ -1022,8 +1020,8 @@ export default function Home() {
                       </>
                     )}
                     
-                    {/* 현금잔액과 차입금잔액표 (2026년만) */}
-                    {wcYear === 2026 && balanceData && (
+                    {/* 현금잔액과 차입금잔액표 */}
+                    {balanceData && (
                       <div className="mt-8 pt-6 border-t-2 border-gray-400">
                         <h2 className="text-lg font-bold text-gray-800 mb-4">
                           현금잔액과 차입금잔액표
