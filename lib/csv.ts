@@ -478,6 +478,36 @@ export async function readWorkingCapitalStatementCSV(filePath: string, year: num
   return result;
 }
 
+// 기타 폴더 CSV 읽기 (현금잔액, 차입금잔액 등 단순 테이블)
+export async function readBalanceCSV(filePath: string): Promise<string[][]> {
+  let content: string;
+  
+  try {
+    // UTF-8 시도
+    content = fs.readFileSync(filePath, 'utf-8');
+  } catch (err) {
+    try {
+      // CP949(EUC-KR) 시도
+      const buffer = fs.readFileSync(filePath);
+      content = iconv.decode(buffer, 'cp949');
+    } catch (err2) {
+      throw new Error(`CSV 파일을 읽을 수 없습니다: ${filePath}`);
+    }
+  }
+
+  // CSV 파싱 (헤더 없이)
+  const parsed = Papa.parse<string[]>(content, {
+    header: false,
+    skipEmptyLines: true,
+  });
+
+  if (parsed.errors.length > 0) {
+    console.error('CSV 파싱 에러:', parsed.errors);
+  }
+
+  return parsed.data;
+}
+
 // 여신회수계획 CSV 읽기
 export async function readCreditRecoveryCSV(filePath: string): Promise<CreditRecoveryRawData> {
   let content: string;

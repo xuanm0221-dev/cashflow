@@ -53,7 +53,7 @@ export interface BrandComparisonData {
 }
 
 // 탭 타입
-export type TabType = 'CF' | 'CREDIT' | 'WORKING_CAPITAL' | 'WORKING_CAPITAL_STATEMENT' | 'CREDIT_RECOVERY';
+export type TabType = 'CF' | 'CREDIT' | 'WORKING_CAPITAL' | 'WORKING_CAPITAL_STATEMENT' | 'CREDIT_RECOVERY' | 'BALANCE';
 
 // 월 데이터 맵
 export type MonthDataMap = Map<string, number[]>; // account -> [month1, month2, ..., month12]
@@ -102,4 +102,48 @@ export interface CreditRecoveryRawData {
 export interface CreditRecoveryData extends CreditRecoveryRawData {
   baseYearMonth: string; // 기준 연월 (예: "25.12")
   headers: string[]; // 0이 아닌 회수에 해당하는 헤더만 포함
+}
+
+// 현금차입금 잔액 데이터
+export interface BalanceData {
+  현금잔액: {
+    기초잔액: number;
+    monthly: number[]; // 1월~12월
+    기말잔액: number;
+  };
+  차입금잔액: {
+    기초잔액: number;
+    monthly: number[]; // 1월~12월
+    기말잔액: number;
+  };
+}
+
+// ==================== 편집 가능한 분석 데이터 ====================
+
+// 카테고리별 분석 데이터
+export interface EditableCategoryAnalysis {
+  account: string;
+  annualTotal: number;
+  yoyAbsolute: number | null;
+  yoyPercent: number | null;
+  customText?: string; // 사용자 정의 텍스트 (없으면 자동 생성 표시)
+}
+
+// 운전자본표 인사이트
+export interface EditableWCInsights {
+  arInsight?: string;
+  inventoryInsight?: string;
+  apInsight?: string;
+}
+
+// 편집 가능한 전체 분석 데이터
+export interface EditableAnalysis {
+  year: number;
+  keyInsights: string[];
+  cfCategories: EditableCategoryAnalysis[];
+  wcCategories: EditableCategoryAnalysis[];
+  wcInsights: EditableWCInsights;
+  riskFactors: string[];
+  actionItems: string[];
+  lastModified: string; // ISO 8601 형식
 }
