@@ -28,7 +28,26 @@ export async function GET(request: NextRequest) {
     }
     
     const key = `analysis:${year}`;
-    const analysis = (await kv.get(key)) as EditableAnalysis | null;
+    let analysis = (await kv.get(key)) as EditableAnalysis | null;
+    
+    // 마이그레이션: "from 차입금" → "차입금"
+    if (analysis) {
+      // cfCategories 배열에서 계정명 변환
+      if (analysis.cfCategories) {
+        analysis.cfCategories = analysis.cfCategories.map(cat => ({
+          ...cat,
+          account: cat.account === 'from 차입금' ? '차입금' : cat.account
+        }));
+      }
+      
+      // wcCategories 배열도 확인 (혹시 모를 경우 대비)
+      if (analysis.wcCategories) {
+        analysis.wcCategories = analysis.wcCategories.map(cat => ({
+          ...cat,
+          account: cat.account === 'from 차입금' ? '차입금' : cat.account
+        }));
+      }
+    }
     
     return NextResponse.json({ 
       analysis: analysis || null
