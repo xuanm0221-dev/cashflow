@@ -711,8 +711,8 @@ export default function Home() {
                             )}
                           </section>
 
-                          {/* 2열 그리드: 현금흐름표 + 운전자본표 */}
-                          <div className="grid grid-cols-2 gap-4">
+                          {/* 세로 배치: 현금흐름표 + 운전자본표 */}
+                          <div className="space-y-4">
                             {/* 현금흐름표 상세 */}
                             {displayAnalysis.cfCategories.length > 0 && (
                               <section className="bg-white rounded-lg border border-green-100 shadow-sm p-4">
@@ -722,44 +722,38 @@ export default function Home() {
                                 </h4>
                                 <div className="space-y-3">
                                   {displayAnalysis.cfCategories.map((cat, idx) => (
-                                    <div key={idx} className="text-base pl-2">
-                                      <div className="font-semibold text-gray-900 mb-1">
-                                        {cat.account}
-                                      </div>
-                                      <div className="text-gray-700 pl-4">
-                                        {editMode ? (
-                                          <div className="space-y-2">
-                                            <div className="text-xs text-gray-500 italic">
-                                              자동 생성: {generateCategoryText(cat, true)}
-                                            </div>
-                                            <textarea
-                                              value={cat.customText !== undefined ? cat.customText : generateCategoryText(cat, true)}
-                                              onChange={(e) => {
-                                                const newCategories = [...displayAnalysis.cfCategories];
-                                                newCategories[idx] = { ...newCategories[idx], customText: e.target.value };
-                                                setEditedAnalysis({ ...displayAnalysis, cfCategories: newCategories });
-                                              }}
-                                              placeholder="금액 표시 텍스트 입력..."
-                                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                                              rows={2}
-                                            />
-                                            <button
-                                              onClick={() => {
-                                                const newCategories = [...displayAnalysis.cfCategories];
-                                                newCategories[idx] = { ...newCategories[idx], customText: undefined };
-                                                setEditedAnalysis({ ...displayAnalysis, cfCategories: newCategories });
-                                              }}
-                                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                                            >
-                                              자동 생성으로 복원
-                                            </button>
+                                    <div key={idx} className="text-base text-gray-700 leading-relaxed pl-2">
+                                      <span className="font-semibold text-gray-900">{cat.account}:</span>{' '}
+                                      {editMode ? (
+                                        <div className="inline-block w-full space-y-2 mt-1">
+                                          <div className="text-xs text-gray-500 italic">
+                                            자동 생성: {generateCategoryText(cat, true)}
                                           </div>
-                                        ) : (
-                                          <span>
-                                            {cat.customText !== undefined ? cat.customText : generateCategoryText(cat, true)}
-                                          </span>
-                                        )}
-                                      </div>
+                                          <textarea
+                                            value={cat.customText !== undefined ? cat.customText : generateCategoryText(cat, true)}
+                                            onChange={(e) => {
+                                              const newCategories = [...displayAnalysis.cfCategories];
+                                              newCategories[idx] = { ...newCategories[idx], customText: e.target.value };
+                                              setEditedAnalysis({ ...displayAnalysis, cfCategories: newCategories });
+                                            }}
+                                            placeholder="금액 표시 텍스트 입력..."
+                                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            rows={2}
+                                          />
+                                          <button
+                                            onClick={() => {
+                                              const newCategories = [...displayAnalysis.cfCategories];
+                                              newCategories[idx] = { ...newCategories[idx], customText: undefined };
+                                              setEditedAnalysis({ ...displayAnalysis, cfCategories: newCategories });
+                                            }}
+                                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                          >
+                                            자동 생성으로 복원
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        cat.customText !== undefined ? cat.customText : generateCategoryText(cat, true)
+                                      )}
                                     </div>
                                   ))}
                                 </div>
