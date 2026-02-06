@@ -202,13 +202,15 @@ export default function Home() {
             account: c.account,
             annualTotal: c.annualTotal,
             yoyAbsolute: c.yoyAbsolute,
-            yoyPercent: c.yoyPercent
+            yoyPercent: c.yoyPercent,
+            customText: undefined
           })),
           wcCategories: savedAnalysis?.wcCategories || analysisResults.wcAnalysis.categories.map(c => ({
             account: c.account,
             annualTotal: c.annualTotal,
             yoyAbsolute: c.yoyAbsolute,
-            yoyPercent: c.yoyPercent
+            yoyPercent: c.yoyPercent,
+            customText: undefined
           })),
           wcInsights: savedAnalysis?.wcInsights || {
             arInsight: analysisResults.wcAnalysis.arInsight,
@@ -321,13 +323,15 @@ export default function Home() {
           account: c.account,
           annualTotal: c.annualTotal,
           yoyAbsolute: c.yoyAbsolute,
-          yoyPercent: c.yoyPercent
+          yoyPercent: c.yoyPercent,
+          customText: undefined
         })),
         wcCategories: analysisResults.wcAnalysis.categories.map(c => ({
           account: c.account,
           annualTotal: c.annualTotal,
           yoyAbsolute: c.yoyAbsolute,
-          yoyPercent: c.yoyPercent
+          yoyPercent: c.yoyPercent,
+          customText: undefined
         })),
         wcInsights: {
           arInsight: analysisResults.wcAnalysis.arInsight,
