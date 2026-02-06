@@ -277,7 +277,7 @@ export function calculateCF(
       format: 'number',
       year2024Value: year === 2026 && previousYearTotals ? (previousYearTotals.get('기말현금') ?? 기말현금2024) : 기말현금2024,
     },
-    // net cash = 영업활동 + 자산성지출 + 기타수익 + from 차입금(재무활동)
+    // net cash = 영업활동 + 자산성지출 + 기타수익 + 차입금(재무활동)
     (() => {
       const netCash = 영업활동.map((_, i) => 영업활동[i] + 자산성지출[i] + 기타수익합계[i] + 재무활동[i]);
       const netCashAnnual = sumArray(netCash);
@@ -305,7 +305,7 @@ export function calculateCF(
 }
 
 // ==================== Cashflow Table (현금흐름표 - cashflow 폴더, 대분류/중분류/소분류) ====================
-const 현금흐름대분류순서 = ['영업활동', '자산성지출', '기타수익', 'from 차입금'];
+const 현금흐름대분류순서 = ['영업활동', '자산성지출', '기타수익', '차입금'];
 const 현금흐름중분류순서 = ['매출수금', '물품대', '본사선급금', '비용'];
 
 export function calculateCashflowTable(
@@ -400,7 +400,7 @@ export function calculateCashflowTable(
     }
   }
 
-  // net cash = 영업활동 + 자산성지출 + 기타수익 + from 차입금 (from 차입금 바로 아래 행에 항상 표시)
+  // net cash = 영업활동 + 자산성지출 + 기타수익 + 차입금 (차입금 바로 아래 행에 항상 표시)
   if (대분류연간합계.length > 0) {
     const netCashValues = new Array(14).fill(0);
     let netCashAnnual = 0;
@@ -435,7 +435,7 @@ export function calculateCashflowTable(
 }
 
 // ==================== Working Capital Table (운전자본표) ====================
-const 대분류순서 = ['영업활동', '자산성지출', '기타수익', 'from 차입금'];
+const 대분류순서 = ['영업활동', '자산성지출', '기타수익', '차입금'];
 const 중분류순서 = ['매출수금', '물품대', '본사선급금', '비용'];
 
 export function calculateWorkingCapitalTable(

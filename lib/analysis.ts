@@ -409,8 +409,8 @@ export function generateCashFlowInsights(
     }
   }
   
-  // 차입금 분석 (from 차입금)
-  const debt = cfAnalysis.categories.find(c => c.account === 'from 차입금');
+  // 차입금 분석
+  const debt = cfAnalysis.categories.find(c => c.account === '차입금');
   if (debt && debt.yoyAbsolute !== null && debt.yoyAbsolute < 0) {
     keyInsights.push(
       `✓ ${year}년 차입금 순 상환 ${formatMillionYuan(Math.abs(debt.yoyAbsolute))}으로 재무 레버리지 감소. ` +

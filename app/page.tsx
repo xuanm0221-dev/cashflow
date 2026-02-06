@@ -767,57 +767,15 @@ export default function Home() {
                             )}
 
                             {/* 운전자본표 상세 */}
-                            {displayAnalysis.wcCategories.length > 0 && (
+                            {displayAnalysis && (displayAnalysis.wcInsights?.arInsight || displayAnalysis.wcInsights?.inventoryInsight || displayAnalysis.wcInsights?.apInsight) && (
                               <section className="bg-white rounded-lg border border-purple-100 shadow-sm p-4">
                                 <h4 className="text-base font-semibold text-gray-800 mb-3 flex items-center">
                                   <span className="w-1.5 h-5 bg-purple-600 mr-2.5 rounded"></span>
                                   {wcYear}년 운전자본표
                                 </h4>
                                 <div className="space-y-3">
-                                  {displayAnalysis.wcCategories.map((cat, idx) => (
-                                    <div key={idx} className="text-base pl-2">
-                                      <div className="font-semibold text-gray-900 mb-1">
-                                        {cat.account}
-                                      </div>
-                                      <div className="text-gray-700 pl-4">
-                                        {editMode ? (
-                                          <div className="space-y-2">
-                                            <div className="text-xs text-gray-500 italic">
-                                              자동 생성: {generateCategoryText(cat, false)}
-                                            </div>
-                                            <textarea
-                                              value={cat.customText !== undefined ? cat.customText : generateCategoryText(cat, false)}
-                                              onChange={(e) => {
-                                                const newCategories = [...displayAnalysis.wcCategories];
-                                                newCategories[idx] = { ...newCategories[idx], customText: e.target.value };
-                                                setEditedAnalysis({ ...displayAnalysis, wcCategories: newCategories });
-                                              }}
-                                              placeholder="금액 표시 텍스트 입력..."
-                                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                              rows={2}
-                                            />
-                                            <button
-                                              onClick={() => {
-                                                const newCategories = [...displayAnalysis.wcCategories];
-                                                newCategories[idx] = { ...newCategories[idx], customText: undefined };
-                                                setEditedAnalysis({ ...displayAnalysis, wcCategories: newCategories });
-                                              }}
-                                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                                            >
-                                              자동 생성으로 복원
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <span>
-                                            {cat.customText !== undefined ? cat.customText : generateCategoryText(cat, false)}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                  
                                   {/* 항목별 인사이트 */}
-                                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-2.5">
+                                  <div className="space-y-2.5">
                                     {displayAnalysis.wcInsights.arInsight && (
                                       <div className="text-sm text-gray-700 leading-relaxed">
                                         <span className="font-semibold text-gray-900">매출채권:</span>{' '}
