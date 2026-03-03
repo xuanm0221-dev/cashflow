@@ -1,0 +1,363 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { formatNumber } from '@/lib/utils';
+import CFExplanationPanel from '@/components/CFExplanationPanel';
+
+type StaticCFRow = {
+  key: string;
+  label: string;
+  level: 0 | 1 | 2;
+  isGroup: boolean;
+  actual2025: number | null;
+};
+
+type StaticWorkingCapitalRow = {
+  key: string;
+  label: string;
+  level: 0 | 1 | 2;
+  isGroup: boolean;
+  actual2025: number | null;
+};
+
+const STATIC_CF_ROWS: StaticCFRow[] = [
+  { key: 'operating', label: '영업활동', level: 0, isGroup: true, actual2025: -447126572 },
+  { key: 'operating_receipts', label: '매출수금', level: 1, isGroup: true, actual2025: 5227741340 },
+  { key: 'operating_receipts_mlb', label: 'MLB', level: 2, isGroup: false, actual2025: 5013366502 },
+  { key: 'operating_receipts_kids', label: 'MLB KIDS', level: 2, isGroup: false, actual2025: 160399540 },
+  { key: 'operating_receipts_discovery', label: 'DISCOVERY', level: 2, isGroup: false, actual2025: 40727371 },
+  { key: 'operating_receipts_duvetica', label: 'DUVETICA', level: 2, isGroup: false, actual2025: 9232685 },
+  { key: 'operating_receipts_supra', label: 'SUPRA', level: 2, isGroup: false, actual2025: 4015242 },
+  { key: 'operating_payments', label: '물품대', level: 1, isGroup: true, actual2025: -3361214993 },
+  { key: 'operating_payments_hq', label: '본사', level: 2, isGroup: false, actual2025: -2991224444 },
+  { key: 'operating_payments_local', label: '현지', level: 2, isGroup: false, actual2025: -369990549 },
+  { key: 'operating_advance', label: '본사선급금', level: 1, isGroup: false, actual2025: -700000000 },
+  { key: 'operating_expenses', label: '비용', level: 1, isGroup: true, actual2025: -1613652919 },
+  { key: 'operating_expenses_ad', label: '광고비', level: 2, isGroup: false, actual2025: -224166795 },
+  { key: 'operating_expenses_platform', label: '온라인 플랫폼비용', level: 2, isGroup: false, actual2025: -274204282 },
+  { key: 'operating_expenses_store', label: '오프라인 매장비용', level: 2, isGroup: false, actual2025: -256910016 },
+  { key: 'operating_expenses_duty', label: '수입관세', level: 2, isGroup: false, actual2025: -524699762 },
+  { key: 'operating_expenses_payroll', label: '인건비', level: 2, isGroup: false, actual2025: -127309323 },
+  { key: 'operating_expenses_deposit', label: '보증금지급', level: 2, isGroup: false, actual2025: -5982822 },
+  { key: 'operating_expenses_other', label: '기타', level: 2, isGroup: false, actual2025: -200379920 },
+  { key: 'capex', label: '자산성지출', level: 0, isGroup: true, actual2025: -43236275 },
+  { key: 'capex_interior', label: '인테리어/VMD', level: 1, isGroup: false, actual2025: -35983113 },
+  { key: 'capex_fixture', label: '비품취득', level: 1, isGroup: false, actual2025: -7253162 },
+  { key: 'other_income', label: '기타수익', level: 0, isGroup: false, actual2025: 45376018 },
+  { key: 'borrowings', label: '차입금', level: 0, isGroup: false, actual2025: 409685078 },
+  { key: 'net_cash', label: 'net cash', level: 0, isGroup: false, actual2025: -35301752 },
+];
+
+const STATIC_CASH_BORROWING = {
+  cashOpening: 139543000,
+  borrowingOpening: 909685000,
+};
+
+const STATIC_WORKING_CAPITAL_ROWS: StaticWorkingCapitalRow[] = [
+  { key: 'wc_total', label: '운전자본 합계', level: 0, isGroup: false, actual2025: 1819059000 },
+  { key: 'wc_mom', label: '전월대비', level: 0, isGroup: false, actual2025: 485491000 },
+  { key: 'wc_ar', label: '매출채권', level: 1, isGroup: true, actual2025: 725184000 },
+  { key: 'wc_ar_direct', label: '직영AR', level: 2, isGroup: false, actual2025: 52193080 },
+  { key: 'wc_ar_dealer', label: '대리상AR', level: 2, isGroup: false, actual2025: 672991268 },
+  { key: 'wc_inventory', label: '재고자산', level: 1, isGroup: true, actual2025: 1497796000 },
+  { key: 'wc_inventory_mlb', label: 'MLB', level: 2, isGroup: false, actual2025: 1260042373 },
+  { key: 'wc_inventory_kids', label: 'KIDS', level: 2, isGroup: false, actual2025: 66326475 },
+  { key: 'wc_inventory_discovery', label: 'DISCOVERY', level: 2, isGroup: false, actual2025: 171427142 },
+  { key: 'wc_ap', label: '매입채무', level: 1, isGroup: true, actual2025: -753922000 },
+  { key: 'wc_ap_hq', label: '본사 AP', level: 2, isGroup: false, actual2025: -732511214 },
+  { key: 'wc_ap_goods', label: '상품 AP', level: 2, isGroup: false, actual2025: -21410471 },
+];
+
+const STATIC_CREDIT_RECOVERY = {
+  baseYearMonth: '26.01',
+  dealerAdvance: 394146000,
+  dealerReceivable: 801026000,
+  headers: ['2월', '3월', '4월'],
+};
+
+export default function PLCashFlowTab() {
+  const [collapsed, setCollapsed] = useState<Set<string>>(
+    new Set(['operating', 'operating_receipts', 'operating_payments', 'operating_expenses', 'capex'])
+  );
+  const [allCollapsed, setAllCollapsed] = useState(true);
+  const [wcCollapsed, setWcCollapsed] = useState<Set<string>>(new Set(['wc_ar', 'wc_inventory', 'wc_ap']));
+
+  const visibleRows = useMemo(() => {
+    const result: StaticCFRow[] = [];
+    let skipLevel = -1;
+
+    for (const row of STATIC_CF_ROWS) {
+      if (row.level <= skipLevel) {
+        skipLevel = -1;
+      }
+      if (skipLevel >= 0 && row.level > skipLevel) {
+        continue;
+      }
+      if (row.isGroup && collapsed.has(row.key)) {
+        skipLevel = row.level === 0 ? 0 : row.level;
+        result.push(row);
+        continue;
+      }
+      result.push(row);
+    }
+
+    return result;
+  }, [collapsed]);
+
+  const visibleWorkingCapitalRows = useMemo(() => {
+    const result: StaticWorkingCapitalRow[] = [];
+    let skipLevel = -1;
+
+    for (const row of STATIC_WORKING_CAPITAL_ROWS) {
+      if (row.level <= skipLevel) {
+        skipLevel = -1;
+      }
+      if (skipLevel >= 0 && row.level > skipLevel) {
+        continue;
+      }
+      if (row.isGroup && wcCollapsed.has(row.key)) {
+        skipLevel = row.level;
+        result.push(row);
+        continue;
+      }
+      result.push(row);
+    }
+
+    return result;
+  }, [wcCollapsed]);
+
+  const toggle = (key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allCollapsed) {
+      setCollapsed(new Set());
+      setAllCollapsed(false);
+      return;
+    }
+
+    setCollapsed(new Set(['operating', 'operating_receipts', 'operating_payments', 'operating_expenses', 'capex']));
+    setAllCollapsed(true);
+  };
+
+  const toggleWorkingCapital = (key: string) => {
+    setWcCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const formatActual = (value: number | null | undefined) => {
+    if (value == null) return '';
+    if (value === 0) return '-';
+    if (value < 0) return `(${formatNumber(Math.abs(value), false, false)})`;
+    return formatNumber(value, false, false);
+  };
+
+  return (
+    <div>
+      <div className="bg-gray-100 border-b border-gray-300">
+        <div className="flex items-center gap-3 px-6 py-3">
+          <span className="text-sm font-medium text-gray-700">2026년 현금흐름표 양식</span>
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors shadow-sm"
+          >
+            {allCollapsed ? '전체 펼치기' : '전체 접기'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 min-h-0">
+        <div className="w-1/3 min-w-0 overflow-auto p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-lg font-bold text-gray-900">현금흐름표</h2>
+          </div>
+          <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 z-20 bg-navy text-white">
+                <tr>
+                  <th className="border border-gray-300 py-3 px-4 text-left sticky left-0 z-30 bg-navy min-w-[220px]">
+                    계정과목
+                  </th>
+                  <th className="border border-gray-300 py-3 px-4 text-center min-w-[120px]">2025년(합계)</th>
+                  <th className="border border-gray-300 py-3 px-4 text-center min-w-[120px]">2026년(합계)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => {
+                  const isNetCash = row.key === 'net_cash';
+                  const isMajor = row.level === 0 && !isNetCash;
+                  const isMedium = row.level === 1;
+                  const indentPx = row.level === 0 ? 12 : row.level === 1 ? 36 : 60;
+
+                  return (
+                    <tr
+                      key={row.key}
+                      className={
+                        isNetCash
+                          ? 'bg-gray-100'
+                          : isMajor
+                            ? 'bg-sky-100 font-semibold'
+                            : isMedium
+                              ? 'bg-gray-50'
+                              : ''
+                      }
+                    >
+                      <td
+                        className={`border border-gray-300 py-2 px-4 sticky left-0 z-10 ${
+                          isNetCash ? 'bg-gray-100' : isMajor ? 'bg-sky-100' : isMedium ? 'bg-gray-50' : 'bg-white'
+                        }`}
+                        style={{ paddingLeft: `${indentPx}px` }}
+                      >
+                        {row.isGroup ? (
+                          <div className="flex items-center gap-1">
+                            <span>{row.label}</span>
+                            <button
+                              type="button"
+                              onClick={() => toggle(row.key)}
+                              className="text-gray-600 hover:text-gray-900 p-0.5 leading-none"
+                            >
+                              {collapsed.has(row.key) ? '▸' : '▾'}
+                            </button>
+                          </div>
+                        ) : (
+                          row.label
+                        )}
+                      </td>
+                      <td className="border border-gray-300 py-2 px-4 text-right">{formatActual(row.actual2025)}</td>
+                      <td className="border border-gray-300 py-2 px-4 text-right"></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-8">
+            <h3 className="text-base font-semibold text-gray-800 mb-2">현금잔액과 차입금잔액표</h3>
+            <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-navy text-white">
+                  <tr>
+                    <th className="border border-gray-300 py-2.5 px-4 text-left sticky left-0 z-10 bg-navy min-w-[200px]">구분</th>
+                    <th className="border border-gray-300 py-2.5 px-4 text-center min-w-[120px]">기초잔액</th>
+                    <th className="border border-gray-300 py-2.5 px-4 text-center min-w-[120px]">기말잔액</th>
+                    <th className="border border-gray-300 py-2.5 px-4 text-center min-w-[100px]">YoY</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-gray-50">
+                  <tr>
+                    <td className="border border-gray-300 py-2 px-4 font-medium sticky left-0 z-10 bg-gray-100 text-gray-800">현금잔액</td>
+                    <td className="border border-gray-300 py-2 px-4 text-right bg-gray-50">{formatActual(STATIC_CASH_BORROWING.cashOpening)}</td>
+                    <td className="border border-gray-300 py-2 px-4 text-right bg-gray-50"></td>
+                    <td className="border border-gray-300 py-2 px-4 text-right bg-gray-50"></td>
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-300 py-2 px-4 font-medium sticky left-0 z-10 bg-gray-100 text-gray-800">차입금잔액</td>
+                    <td className="border border-gray-300 py-2 px-4 text-right bg-gray-50">{formatActual(STATIC_CASH_BORROWING.borrowingOpening)}</td>
+                    <td className="border border-gray-300 py-2 px-4 text-right bg-gray-50"></td>
+                    <td className="border border-gray-300 py-2 px-4 text-right bg-gray-50"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <h3 className="text-base font-semibold text-gray-800 mb-2">운전자본표</h3>
+            <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-navy text-white">
+                  <tr>
+                    <th className="border border-gray-300 py-3 px-4 text-left sticky left-0 z-20 bg-navy min-w-[200px]">계정과목</th>
+                    <th className="border border-gray-300 py-3 px-4 text-center min-w-[120px]">2025년(기말)</th>
+                    <th className="border border-gray-300 py-3 px-4 text-center min-w-[120px]">2026년(기말)</th>
+                    <th className="border border-gray-300 py-3 px-4 text-center min-w-[100px]">YoY</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleWorkingCapitalRows.map((row) => {
+                    const isTotal = row.key === 'wc_total';
+                    const isMonthDiff = row.key === 'wc_mom';
+                    const isLevel1 = !isTotal && !isMonthDiff && row.level === 1;
+                    const cellBg = isTotal ? 'bg-yellow-50' : isLevel1 ? 'bg-sky-100' : isMonthDiff ? 'bg-gray-100' : 'bg-white';
+                    const indentPx = row.level === 2 ? 36 : 12;
+
+                    return (
+                      <tr key={row.key} className={cellBg + (isTotal || isLevel1 ? ' font-semibold' : '')}>
+                        <td
+                          className={`border border-gray-300 py-2 px-4 sticky left-0 z-10 ${cellBg}`}
+                          style={{ paddingLeft: `${indentPx}px` }}
+                        >
+                          {row.isGroup ? (
+                            <div className="flex items-center gap-1">
+                              <span>{row.label}</span>
+                              <button
+                                type="button"
+                                onClick={() => toggleWorkingCapital(row.key)}
+                                className="text-gray-600 hover:text-gray-900 p-0.5 leading-none"
+                              >
+                                {wcCollapsed.has(row.key) ? '▸' : '▾'}
+                              </button>
+                            </div>
+                          ) : (
+                            row.label
+                          )}
+                        </td>
+                        <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg}`}>{formatActual(row.actual2025)}</td>
+                        <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg}`}></td>
+                        <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg}`}></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <h3 className="text-base font-semibold text-gray-800 mb-2">대리상 여신회수 계획 ({STATIC_CREDIT_RECOVERY.baseYearMonth} 기준)</h3>
+            <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-navy text-white">
+                  <tr>
+                    <th className="border border-gray-300 py-3 px-4 text-center min-w-[100px]">대리상선수금</th>
+                    <th className="border border-gray-300 py-3 px-4 text-center min-w-[100px]">대리상 채권</th>
+                    {STATIC_CREDIT_RECOVERY.headers.map((header) => (
+                      <th key={header} className="border border-gray-300 py-3 px-4 text-center min-w-[100px]">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-gray-50">
+                  <tr>
+                    <td className="border border-gray-300 py-2 px-4 text-right">{formatActual(STATIC_CREDIT_RECOVERY.dealerAdvance)}</td>
+                    <td className="border border-gray-300 py-2 px-4 text-right">{formatActual(STATIC_CREDIT_RECOVERY.dealerReceivable)}</td>
+                    {STATIC_CREDIT_RECOVERY.headers.map((header) => (
+                      <td key={header} className="border border-gray-300 py-2 px-4 text-right"></td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 overflow-auto p-6 border-l border-gray-200">
+          <CFExplanationPanel year={2026} />
+        </div>
+      </div>
+    </div>
+  );
+}

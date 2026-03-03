@@ -53,7 +53,7 @@ export interface BrandComparisonData {
 
 // 재무제표 타입
 export type StatementType = 'PL' | 'BS' | 'CF';
-export type TabType = 'SUMMARY' | 'PL' | 'BS' | 'CF' | 'CREDIT' | 'INVENTORY';
+export type TabType = 'SUMMARY' | 'PL' | 'BS' | 'CF' | 'CREDIT' | 'INVENTORY' | 'PL_CF';
 
 // 월 데이터 맵
 export type MonthDataMap = Map<string, number[]>; // account -> [month1, month2, ..., month12]

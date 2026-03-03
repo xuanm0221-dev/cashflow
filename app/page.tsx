@@ -17,6 +17,7 @@ import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { TableRow, CreditData, CreditRecoveryData, TabType, ExecutiveSummaryData } from '@/lib/types';
 import InventoryDashboard from '@/components/inventory/InventoryDashboard';
 import PLForecastTab from '@/components/pl-forecast/PLForecastTab';
+import PLCashFlowTab from '@/components/pl-forecast/PLCashFlowTab';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<number>(5);
@@ -193,12 +194,12 @@ export default function Home() {
     { id: 'supra', label: 'SUPRA' },
   ];
 
-  const tabs = ['경영요약', '손익계산서', '재무상태표', '현금흐름표', '여신사용현황', '재고자산', 'PL(FY26 FCST)'];
+  const tabs = ['경영요약', '손익계산서', '재무상태표', '현금흐름표', '여신사용현황', '재고자산', 'PL(FY26 FCST)', 'CF'];
   const tabGroups = [
     { id: 'group1', label: '그룹1', tabIndexes: [0, 1, 2, 3, 4] },
-    { id: 'group2', label: '그룹2', tabIndexes: [5, 6] },
+    { id: 'group2', label: '그룹2', tabIndexes: [5, 6, 7] },
   ];
-  const tabTypes: TabType[] = ['SUMMARY', 'PL', 'BS', 'CF', 'CREDIT', 'INVENTORY'];
+  const tabTypes: TabType[] = ['SUMMARY', 'PL', 'BS', 'CF', 'CREDIT', 'INVENTORY', 'PL', 'PL_CF'];
 
   // 데이터 로딩
   const loadData = async (type: TabType, year?: number, month?: number, brand?: string | null) => {
@@ -785,6 +786,7 @@ export default function Home() {
         {/* 재고자산 */}
         {inventoryTabMounted && <div className={activeTab === 5 ? '' : 'hidden'}><InventoryDashboard /></div>}
         {activeTab === 6 && <PLForecastTab />}
+        {activeTab === 7 && <PLCashFlowTab />}
       </div>
     </main>
   );
