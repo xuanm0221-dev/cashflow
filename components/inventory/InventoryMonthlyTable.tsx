@@ -34,6 +34,10 @@ interface Props {
   headerBorderColor?: string;
   /** 합계 행(isTotal) 배경 Tailwind 클래스. 기본값 bg-sky-100. 본사는 bg-teal-50 */
   totalRowCls?: string;
+  showAnnualTotal?: boolean;
+  annualTotalByRowKey?: Record<string, number | null | undefined>;
+  validationHeader?: string;
+  validationByRowKey?: Record<string, number | null | undefined>;
 }
 
 // ─── 스타일 헬퍼 ───────────────────────────────────
@@ -74,6 +78,10 @@ export default function InventoryMonthlyTable({
   headerBg = '#1a2e5a',
   headerBorderColor = '#2e4070',
   totalRowCls = 'bg-sky-100',
+  showAnnualTotal = true,
+  annualTotalByRowKey,
+  validationHeader,
+  validationByRowKey,
 }: Props) {
   const getRowBg = (row: TableRow): string => {
     if (row.isTotal) return totalRowCls;
@@ -127,9 +135,16 @@ export default function InventoryMonthlyTable({
                   )}
                 </th>
               ))}
-              <th className={TH} style={{ minWidth: 80, backgroundColor: '#2a9d8f', borderColor: '#1f7a6e' }}>
-                연간 합계
-              </th>
+              {showAnnualTotal && (
+                <th className={TH} style={{ minWidth: 80, backgroundColor: '#2a9d8f', borderColor: '#1f7a6e' }}>
+                  연간 합계
+                </th>
+              )}
+              {validationHeader && (
+                <th className={TH} style={{ minWidth: 80, backgroundColor: '#7c3aed', borderColor: '#6d28d9' }}>
+                  {validationHeader}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -158,14 +173,28 @@ export default function InventoryMonthlyTable({
                   </td>
                 ))}
                 {/* 연간 합계 — 헤더 계열과 통일된 연한 배경 */}
-                <td className={`${cellCls(row)} ${totalRowCls === 'bg-teal-50' ? 'bg-teal-50/60' : 'bg-sky-50'}`}>
-                  {formatAmt(
-                    row.monthly.reduce<number | null>((sum, v) => {
-                      if (v == null) return sum;
-                      return (sum ?? 0) + v;
-                    }, null),
-                  )}
-                </td>
+                {showAnnualTotal && (
+                  <td className={`${cellCls(row)} ${totalRowCls === 'bg-teal-50' ? 'bg-teal-50/60' : 'bg-sky-50'}`}>
+                    {formatAmt(
+                      annualTotalByRowKey?.[row.key] ??
+                        row.monthly.reduce<number | null>((sum, v) => {
+                          if (v == null) return sum;
+                          return (sum ?? 0) + v;
+                        }, null),
+                    )}
+                  </td>
+                )}
+                {validationHeader && (
+                  <td className={`${cellCls(row, (validationByRowKey?.[row.key] ?? null) === 0 ? 'text-emerald-700' : 'text-rose-600')} bg-violet-50/70`}>
+                    {(() => {
+                      const raw = validationByRowKey?.[row.key];
+                      if (raw == null || !Number.isFinite(raw)) return '-';
+                      const rounded = Math.round(raw / 1000);
+                      if (rounded === 0) return '0';
+                      return rounded > 0 ? `+${rounded.toLocaleString()}` : rounded.toLocaleString();
+                    })()}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

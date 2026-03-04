@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand, InventoryApiResponse, InventoryTableData, InventoryRowRaw, AccKey, ACC_KEYS, SEASON_KEYS, RowKey } from '@/lib/inventory-types';
 import { MonthlyStockResponse } from '@/lib/inventory-monthly-types';
-import { RetailSalesResponse } from '@/lib/retail-sales-types';
+import { RetailSalesResponse, RetailSalesRow } from '@/lib/retail-sales-types';
 import type { ShipmentSalesResponse } from '@/app/api/inventory/shipment-sales/route';
 import type { PurchaseResponse } from '@/app/api/inventory/purchase/route';
 import { buildTableDataFromMonthly } from '@/lib/build-inventory-from-monthly';
@@ -13,7 +13,7 @@ import {
   loadSnapshot,
   type SnapshotData,
 } from '@/lib/inventory-snapshot';
-import { stripPlanMonths, applyPlanToSnapshot, PLAN_FROM_MONTH } from '@/lib/retail-plan';
+import { stripPlanMonths, applyPlanToSnapshot, mergePlanMonths, PLAN_FROM_MONTH } from '@/lib/retail-plan';
 import {
   BRANDS_TO_AGGREGATE,
   aggregateMonthlyStock,
@@ -35,6 +35,19 @@ type AnnualPlanBrand = typeof ANNUAL_PLAN_BRANDS[number];
 type AnnualPlanSeason = typeof ANNUAL_PLAN_SEASONS[number];
 type AnnualShipmentPlan = Record<AnnualPlanBrand, Record<AnnualPlanSeason, number>>;
 type HqClosingByBrand = Record<AnnualPlanBrand, number>;
+type ShipmentProgressBrand = AnnualPlanBrand;
+
+interface ShipmentProgressRow {
+  brand: ShipmentProgressBrand;
+  season: '당년S' | '당년F';
+  prevYearProgress: number | null;
+  monthly: (number | null)[];
+}
+
+interface AccShipmentRatioRow {
+  brand: ShipmentProgressBrand;
+  monthly: (number | null)[];
+}
 
 const ANNUAL_PLAN_SEASON_LABELS: Record<AnnualPlanSeason, string> = {
   currF: '당년F',
@@ -64,6 +77,55 @@ const TXT_COLLAPSE = '▲ 접기';
 const TXT_EXPAND = '▼ 펼치기';
 
 /** 본사 의류매입 표(annualPlan) → hqSellInPlan 시즌 행 매핑 */
+const DRIVER_COLUMN_HEADERS = ['전년', '계획', 'YOY', 'Rolling', 'YOY', '계획대비 증감'] as const;
+const INDEPENDENT_DRIVER_COLUMN_HEADERS = ['Rolling'] as const;
+const INDEPENDENT_DRIVER_ROWS = ['대리상 리테일 성장율', '본사 리테일 성장율'] as const;
+const DEPENDENT_DRIVER_ROWS = ['대리상출고', '본사상품매입', '본사기말재고'] as const;
+
+function formatDriverPercent(value: number): string {
+  return `${100 + value}%`;
+}
+
+function formatDriverNumber(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '-';
+  return Math.round(value).toLocaleString();
+}
+
+function getDependentDriverCellValue(
+  column: (typeof DRIVER_COLUMN_HEADERS)[number],
+  columnIndex: number,
+  rowIndex: number,
+  currentTotalRow: InventoryTableData['rows'][number] | null,
+  prevTotalRow: InventoryTableData['rows'][number] | null,
+): string {
+  const pickValue = (row: InventoryTableData['rows'][number] | null): number | null | undefined => {
+    if (rowIndex === 0) return row?.sellOutTotal;
+    if (rowIndex === 1) return row?.sellInTotal;
+    return row?.closing;
+  };
+  if (column === '전년') return formatDriverNumber(pickValue(prevTotalRow));
+  if (column === 'Rolling') return formatDriverNumber(pickValue(currentTotalRow));
+  if (column === 'YOY' && columnIndex === 4) {
+    const currentValue = pickValue(currentTotalRow);
+    const prevValue = pickValue(prevTotalRow);
+    if (currentValue == null || prevValue == null || !Number.isFinite(currentValue) || !Number.isFinite(prevValue) || prevValue === 0) {
+      return '-';
+    }
+    return `${Math.round((currentValue / prevValue) * 100).toLocaleString()}%`;
+  }
+  return '-';
+}
+
+function buildShipmentProgressRates(row: ShipmentProgressRow | null | undefined): number[] {
+  let prevCumulative = row?.prevYearProgress ?? 0;
+  return Array.from({ length: 12 }, (_, monthIndex) => {
+    const currentCumulative = row?.monthly[monthIndex] ?? prevCumulative;
+    const monthlyRate = Math.max(currentCumulative - prevCumulative, 0);
+    prevCumulative = currentCumulative;
+    return monthlyRate;
+  });
+}
+
 function annualPlanToHqSellInPlan(plan: AnnualShipmentPlan, planBrand: AnnualPlanBrand): Partial<Record<RowKey, number>> {
   const row = plan[planBrand];
   if (!row) return {};
@@ -154,6 +216,113 @@ function aggregateTopTables(tables: TopTablePair[], year: number): TopTablePair 
   return {
     dealer: aggregateLeafTables(tables.map((t) => t.dealer), year),
     hq: aggregateLeafTables(tables.map((t) => t.hq), year),
+  };
+}
+
+type AdjustedDealerRetailRow = RetailSalesRow & { opening?: number | null };
+
+function buildAdjustedDealerRetailRows(
+  sourceRows: RetailSalesRow[],
+  monthlyRows: MonthlyStockResponse['dealer']['rows'],
+  shipmentRows: ShipmentSalesResponse['data']['rows'],
+): AdjustedDealerRetailRow[] {
+  const monthlyByKey = new Map(monthlyRows.map((row) => [row.key, row]));
+  const shipmentByKey = new Map(shipmentRows.map((row) => [row.key, row]));
+  const leafRows: AdjustedDealerRetailRow[] = sourceRows
+    .filter((row) => row.isLeaf)
+    .map((row) => ({
+      ...row,
+      opening: monthlyByKey.get(row.key)?.opening ?? null,
+      monthly: row.monthly.map((_, monthIndex) => {
+        const monthlyRow = monthlyByKey.get(row.key);
+        const shipmentRow = shipmentByKey.get(row.key);
+        if (!monthlyRow || !shipmentRow) return null;
+        const opening = monthIndex === 0 ? (monthlyRow.opening ?? null) : (monthlyRow.monthly[monthIndex - 1] ?? null);
+        const sellIn = shipmentRow.monthly[monthIndex] ?? null;
+        const closing = monthlyRow.monthly[monthIndex] ?? null;
+        if (opening === null || sellIn === null || closing === null) return null;
+        return opening + sellIn - closing;
+      }),
+    }));
+
+  const sumOpening = (rows: AdjustedDealerRetailRow[]): number | null => {
+    const values = rows
+      .map((row) => row.opening)
+      .filter((value): value is number => value != null && Number.isFinite(value));
+    if (values.length === 0) return null;
+    return values.reduce((sum, value) => sum + value, 0);
+  };
+  const sumMonthly = (rows: AdjustedDealerRetailRow[], monthIndex: number): number | null => {
+    const values = rows
+      .map((row) => row.monthly[monthIndex] ?? null)
+      .filter((value): value is number => value != null && Number.isFinite(value));
+    if (values.length === 0) return null;
+    return values.reduce((sum, value) => sum + value, 0);
+  };
+
+  const clothingLeafRows = leafRows.slice(0, 6);
+  const accLeafRows = leafRows.slice(6);
+  const totalTemplate = sourceRows.find((row) => row.isTotal);
+  const subtotalTemplates = sourceRows.filter((row) => row.isSubtotal);
+  const clothingSubtotalTemplate = subtotalTemplates[0] ?? null;
+  const accSubtotalTemplate = subtotalTemplates[1] ?? null;
+  const clothingSubtotal =
+    clothingSubtotalTemplate == null
+      ? null
+      : {
+          ...clothingSubtotalTemplate,
+          opening: sumOpening(clothingLeafRows),
+          monthly: clothingSubtotalTemplate.monthly.map((_, monthIndex) => sumMonthly(clothingLeafRows, monthIndex)),
+        };
+  const accSubtotal =
+    accSubtotalTemplate == null
+      ? null
+      : {
+          ...accSubtotalTemplate,
+          opening: sumOpening(accLeafRows),
+          monthly: accSubtotalTemplate.monthly.map((_, monthIndex) => sumMonthly(accLeafRows, monthIndex)),
+        };
+  const grandTotal =
+    totalTemplate == null
+      ? null
+      : {
+          ...totalTemplate,
+          opening: sumOpening(leafRows),
+          monthly: totalTemplate.monthly.map((_, monthIndex) => sumMonthly(leafRows, monthIndex)),
+        };
+
+  return [
+    ...(grandTotal ? [grandTotal] : []),
+    ...(clothingSubtotal ? [clothingSubtotal] : []),
+    ...clothingLeafRows,
+    ...(accSubtotal ? [accSubtotal] : []),
+    ...accLeafRows,
+  ];
+}
+
+function applyAdjustedDealerRetailPlanBase(
+  currentRetail: RetailSalesResponse,
+  prevYearMonthly: MonthlyStockResponse,
+  prevYearRetail: RetailSalesResponse,
+  prevYearShipment: ShipmentSalesResponse,
+  growthRateDealer: number,
+): RetailSalesResponse {
+  if (currentRetail.planFromMonth == null) return currentRetail;
+  const adjustedPrevDealerRows = buildAdjustedDealerRetailRows(
+    prevYearRetail.dealer.rows,
+    prevYearMonthly.dealer.rows,
+    prevYearShipment.data.rows,
+  );
+  return {
+    ...currentRetail,
+    dealer: {
+      rows: mergePlanMonths(
+        currentRetail.dealer.rows,
+        adjustedPrevDealerRows,
+        currentRetail.planFromMonth,
+        1 + growthRateDealer / 100,
+      ),
+    },
   };
 }
 
@@ -384,6 +553,9 @@ export default function InventoryDashboard() {
   const [prevYearRetailData, setPrevYearRetailData] = useState<RetailSalesResponse | null>(null);
   const [prevYearShipmentData, setPrevYearShipmentData] = useState<ShipmentSalesResponse | null>(null);
   const [prevYearPurchaseData, setPrevYearPurchaseData] = useState<PurchaseResponse | null>(null);
+  const [prevYearMonthlyDataByBrand, setPrevYearMonthlyDataByBrand] = useState<Partial<Record<LeafBrand, MonthlyStockResponse>>>({});
+  const [prevYearRetailDataByBrand, setPrevYearRetailDataByBrand] = useState<Partial<Record<LeafBrand, RetailSalesResponse>>>({});
+  const [prevYearShipmentDataByBrand, setPrevYearShipmentDataByBrand] = useState<Partial<Record<LeafBrand, ShipmentSalesResponse>>>({});
   const [prevYearLoading, setPrevYearLoading] = useState<boolean>(false);
   const [prevYearError, setPrevYearError] = useState<boolean>(false);
 
@@ -401,10 +573,14 @@ export default function InventoryDashboard() {
   const [purchaseData, setPurchaseData] = useState<PurchaseResponse | null>(null);
   const [purchaseLoading, setPurchaseLoading] = useState<boolean>(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [plActualAvailableMonths, setPlActualAvailableMonths] = useState<number[]>([]);
+  const [shipmentProgressRows, setShipmentProgressRows] = useState<ShipmentProgressRow[]>([]);
+  const [accShipmentRatioRows, setAccShipmentRatioRows] = useState<AccShipmentRatioRow[]>([]);
 
   // ?붾퀎 ?뱀뀡 ?좉? (湲곕낯 ?묓옒)
   const [monthlyOpen, setMonthlyOpen] = useState(false);
   const [retailOpen, setRetailOpen] = useState(false);
+  const [adjustedRetailOpen, setAdjustedRetailOpen] = useState(false);
   const [shipmentOpen, setShipmentOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [annualPlanOpen, setAnnualPlanOpen] = useState(false);
@@ -818,6 +994,9 @@ export default function InventoryDashboard() {
       setPrevYearRetailData(null);
       setPrevYearShipmentData(null);
       setPrevYearPurchaseData(null);
+      setPrevYearMonthlyDataByBrand({});
+      setPrevYearRetailDataByBrand({});
+      setPrevYearShipmentDataByBrand({});
       setPrevYearLoading(false);
       setPrevYearError(false);
       return;
@@ -827,6 +1006,9 @@ export default function InventoryDashboard() {
     setPrevYearRetailData(null);
     setPrevYearShipmentData(null);
     setPrevYearPurchaseData(null);
+    setPrevYearMonthlyDataByBrand({});
+    setPrevYearRetailDataByBrand({});
+    setPrevYearShipmentDataByBrand({});
     setPrevYearLoading(true);
     setPrevYearError(false);
     let cancelled = false;
@@ -846,6 +1028,9 @@ export default function InventoryDashboard() {
             setPrevYearRetailData(prevSnap.retailActuals);
             setPrevYearShipmentData(prevSnap.shipment);
             setPrevYearPurchaseData(prevSnap.purchase);
+            setPrevYearMonthlyDataByBrand({});
+            setPrevYearRetailDataByBrand({});
+            setPrevYearShipmentDataByBrand({});
             return;
           }
         }
@@ -873,6 +1058,21 @@ export default function InventoryDashboard() {
             Promise.all(purchaseRess.map((r) => r.json() as Promise<PurchaseResponse>)),
           ]);
           if (cancelled) return;
+          setPrevYearMonthlyDataByBrand({
+            MLB: monthlyJsons[0],
+            'MLB KIDS': monthlyJsons[1],
+            DISCOVERY: monthlyJsons[2],
+          });
+          setPrevYearRetailDataByBrand({
+            MLB: retailJsons[0],
+            'MLB KIDS': retailJsons[1],
+            DISCOVERY: retailJsons[2],
+          });
+          setPrevYearShipmentDataByBrand({
+            MLB: shipmentJsons[0],
+            'MLB KIDS': shipmentJsons[1],
+            DISCOVERY: shipmentJsons[2],
+          });
           setPrevYearMonthlyData(aggregateMonthlyStock(monthlyJsons));
           setPrevYearRetailData(aggregateRetailSales(retailJsons));
           setPrevYearShipmentData(aggregateShipmentSales(shipmentJsons));
@@ -909,6 +1109,9 @@ export default function InventoryDashboard() {
           setPrevYearRetailData(rJson);
           setPrevYearShipmentData(sJson);
           setPrevYearPurchaseData(pJson);
+          setPrevYearMonthlyDataByBrand({});
+          setPrevYearRetailDataByBrand({});
+          setPrevYearShipmentDataByBrand({});
         }
       } catch {
         if (!cancelled) {
@@ -916,6 +1119,9 @@ export default function InventoryDashboard() {
           setPrevYearRetailData(null);
           setPrevYearShipmentData(null);
           setPrevYearPurchaseData(null);
+          setPrevYearMonthlyDataByBrand({});
+          setPrevYearRetailDataByBrand({});
+          setPrevYearShipmentDataByBrand({});
           setPrevYearError(true);
         }
       } finally {
@@ -931,17 +1137,86 @@ export default function InventoryDashboard() {
     };
   }, [year, brand]);
 
+  useEffect(() => {
+    if (year !== 2026) {
+      setPlActualAvailableMonths([]);
+      setShipmentProgressRows([]);
+      setAccShipmentRatioRows([]);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const [actualRes, progressRes, accRes] = await Promise.all([
+          fetch(`/api/pl-forecast/brand-actual?${new URLSearchParams({ year: String(year) })}`, { cache: 'no-store' }),
+          fetch('/api/inventory/shipment-progress', { cache: 'no-store' }),
+          fetch('/api/inventory/acc-shipment-ratio', { cache: 'no-store' }),
+        ]);
+        const [actualJson, progressJson, accJson] = await Promise.all([
+          actualRes.json() as Promise<{ availableMonths?: number[] }>,
+          progressRes.json() as Promise<{ rows?: ShipmentProgressRow[] }>,
+          accRes.json() as Promise<{ rows?: AccShipmentRatioRow[] }>,
+        ]);
+        if (cancelled) return;
+        setPlActualAvailableMonths(actualRes.ok ? (actualJson.availableMonths ?? []) : []);
+        setShipmentProgressRows(progressRes.ok ? (progressJson.rows ?? []) : []);
+        setAccShipmentRatioRows(accRes.ok ? (accJson.rows ?? []) : []);
+      } catch {
+        if (cancelled) return;
+        setPlActualAvailableMonths([]);
+        setShipmentProgressRows([]);
+        setAccShipmentRatioRows([]);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [year]);
+
   // 2025쨌2026?????곷떒 ?쒕뒗 ?붾퀎 ?ш퀬?붿븸 + 由ы뀒??留ㅼ텧 + 異쒓퀬留ㅼ텧 + 留ㅼ엯?곹뭹?쇰줈 援ъ꽦
   // 2026???뚮쭔 ACC 紐⑺몴 ?ш퀬二쇱닔 ?ㅻ쾭?덉씠 ?곸슜
+
+  const effectiveRetailData = useMemo<RetailSalesResponse | null>(() => {
+    if (!retailData) return null;
+    if (year === 2025 && monthlyData && shipmentData) {
+      return {
+        ...retailData,
+        dealer: {
+          rows: buildAdjustedDealerRetailRows(
+            retailData.dealer.rows,
+            monthlyData.dealer.rows,
+            shipmentData.data.rows,
+          ),
+        },
+      };
+    }
+    if (year === 2026 && prevYearMonthlyData && prevYearRetailData && prevYearShipmentData) {
+      return applyAdjustedDealerRetailPlanBase(
+        retailData,
+        prevYearMonthlyData,
+        prevYearRetailData,
+        prevYearShipmentData,
+        growthRate,
+      );
+    }
+    return retailData;
+  }, [year, retailData, monthlyData, shipmentData, prevYearMonthlyData, prevYearRetailData, prevYearShipmentData, growthRate]);
+
+  const adjustedDealerRetailTable = useMemo<TableData | null>(() => {
+    if (year !== 2025 || !effectiveRetailData) return null;
+    return { rows: effectiveRetailData.dealer.rows as TableData['rows'] };
+  }, [year, effectiveRetailData]);
+
   const topTableData = useMemo(() => {
     if (
       (year !== 2025 && year !== 2026) ||
       !monthlyData ||
-      !retailData ||
+      !effectiveRetailData ||
       !shipmentData ||
       !purchaseData ||
       monthlyData.dealer.rows.length === 0 ||
-      retailData.dealer.rows.length === 0 ||
+      effectiveRetailData.dealer.rows.length === 0 ||
       shipmentData.data.rows.length === 0 ||
       purchaseData.data.rows.length === 0
     ) {
@@ -953,9 +1228,16 @@ export default function InventoryDashboard() {
       }
       const perBrandTables: TopTablePair[] = BRANDS_TO_AGGREGATE.map((b) => {
         const mData = monthlyDataByBrand[b]!;
-        const rData = retailDataByBrand[b]!;
+        const baseRetailData = retailDataByBrand[b]!;
         const sData = shipmentDataByBrand[b]!;
         const pData = purchaseDataByBrand[b];
+        const prevMData = prevYearMonthlyDataByBrand[b];
+        const prevRData = prevYearRetailDataByBrand[b];
+        const prevSData = prevYearShipmentDataByBrand[b];
+        const rData =
+          prevMData && prevRData && prevSData
+            ? applyAdjustedDealerRetailPlanBase(baseRetailData, prevMData, prevRData, prevSData, growthRate)
+            : baseRetailData;
         const built = buildTableDataFromMonthly(mData, rData, sData, pData ?? undefined, year);
         const withWoi = applyAccTargetWoiOverlay(
           built.dealer,
@@ -981,7 +1263,7 @@ export default function InventoryDashboard() {
 
     const built = buildTableDataFromMonthly(
       monthlyData,
-      retailData,
+      effectiveRetailData,
       shipmentData,
       purchaseData ?? undefined,
       year,
@@ -990,7 +1272,7 @@ export default function InventoryDashboard() {
       const withWoi = applyAccTargetWoiOverlay(
         built.dealer,
         built.hq,
-        retailData,
+        effectiveRetailData,
         accTargetWoiDealer,
         accTargetWoiHq,
         accHqHoldingWoi,
@@ -1010,7 +1292,7 @@ export default function InventoryDashboard() {
       );
     }
     return built;
-  }, [year, brand, monthlyData, retailData, shipmentData, purchaseData, monthlyDataByBrand, retailDataByBrand, shipmentDataByBrand, purchaseDataByBrand, annualShipmentPlan2026, accTargetWoiDealer, accTargetWoiHq, accHqHoldingWoi, hqSellOutPlan, savedSnapshotByBrand, growthRate, growthRateHq, otbData]);
+  }, [year, brand, monthlyData, effectiveRetailData, shipmentData, purchaseData, monthlyDataByBrand, retailDataByBrand, shipmentDataByBrand, purchaseDataByBrand, prevYearMonthlyDataByBrand, prevYearRetailDataByBrand, prevYearShipmentDataByBrand, annualShipmentPlan2026, accTargetWoiDealer, accTargetWoiHq, accHqHoldingWoi, hqSellOutPlan, growthRate, otbData]);
 
   const shouldUseTopTableOnly = year === 2025 || year === 2026;
   const dealerTableData = shouldUseTopTableOnly
@@ -1019,13 +1301,42 @@ export default function InventoryDashboard() {
   const hqTableData = shouldUseTopTableOnly
     ? (topTableData?.hq ?? null)
     : (topTableData?.hq ?? data?.hq ?? null);
+  const purchaseAnnualTotalByRowKey = useMemo<Record<string, number | null> | null>(() => {
+    if (year !== 2026 || !hqTableData) return null;
+    const result: Record<string, number | null> = {};
+    const leafRows = hqTableData.rows.filter((row) => row.isLeaf);
+    const leafByKey = new Map(leafRows.map((row) => [row.key, row]));
+    const sumLeafTotals = (keys: string[]): number | null => {
+      const values = keys
+        .map((key) => leafByKey.get(key)?.sellInTotal)
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      if (values.length === 0) return null;
+      return values.reduce((sum, value) => sum + value, 0) * 1000;
+    };
 
+    for (const row of leafRows) {
+      result[row.key] = row.sellInTotal * 1000;
+    }
+    result['의류합계'] = sumLeafTotals(SEASON_KEYS);
+    result['ACC합계'] = sumLeafTotals(ACC_KEYS);
+    result['매입합계'] = sumLeafTotals([...SEASON_KEYS, ...ACC_KEYS]);
+    return result;
+  }, [year, hqTableData]);
+  const dealerDriverTotalRow = dealerTableData?.rows.find((row) => row.isTotal) ?? null;
+  const hqDriverTotalRow = hqTableData?.rows.find((row) => row.isTotal) ?? null;
   const buildBrand2026TopTable = useCallback((planBrand: AnnualPlanBrand): TopTablePair | null => {
     if (year !== 2026) return null;
     const mData = monthlyDataByBrand[planBrand] ?? (brand === planBrand ? monthlyData : null);
-    const rData = retailDataByBrand[planBrand] ?? (brand === planBrand ? retailData : null);
+    const baseRetailData = retailDataByBrand[planBrand] ?? (brand === planBrand ? retailData : null);
     const sData = shipmentDataByBrand[planBrand] ?? (brand === planBrand ? shipmentData : null);
     const pData = purchaseDataByBrand[planBrand] ?? (brand === planBrand ? purchaseData : null);
+    const prevMData = prevYearMonthlyDataByBrand[planBrand];
+    const prevRData = prevYearRetailDataByBrand[planBrand];
+    const prevSData = prevYearShipmentDataByBrand[planBrand];
+    const rData =
+      baseRetailData && prevMData && prevRData && prevSData
+        ? applyAdjustedDealerRetailPlanBase(baseRetailData, prevMData, prevRData, prevSData, growthRate)
+        : baseRetailData;
     if (!mData || !rData || !sData) return null;
     const built = buildTableDataFromMonthly(
       mData,
@@ -1055,7 +1366,7 @@ export default function InventoryDashboard() {
       mergedSellOutPlan,
       year,
     );
-  }, [year, brand, monthlyDataByBrand, monthlyData, retailDataByBrand, retailData, shipmentDataByBrand, shipmentData, purchaseDataByBrand, purchaseData, accTargetWoiDealer, accTargetWoiHq, accHqHoldingWoi, otbData, hqSellOutPlan, annualShipmentPlan2026]);
+  }, [year, brand, monthlyDataByBrand, monthlyData, retailDataByBrand, retailData, shipmentDataByBrand, shipmentData, purchaseDataByBrand, purchaseData, prevYearMonthlyDataByBrand, prevYearRetailDataByBrand, prevYearShipmentDataByBrand, accTargetWoiDealer, accTargetWoiHq, accHqHoldingWoi, otbData, hqSellOutPlan, annualShipmentPlan2026, growthRate]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || year !== 2026 || !dealerTableData) return;
@@ -1122,6 +1433,540 @@ export default function InventoryDashboard() {
       year - 1,
     );
   }, [year, prevYearMonthlyData, prevYearRetailData, prevYearShipmentData, prevYearPurchaseData]);
+  const prevYearHqDriverTotalRow = prevYearTableData?.hq.rows.find((row) => row.isTotal) ?? null;
+  const plLatestActualMonth = useMemo(() => {
+    if (plActualAvailableMonths.length === 0) return 0;
+    return Math.max(...plActualAvailableMonths);
+  }, [plActualAvailableMonths]);
+  const shipmentPlanFromMonth = year === 2026 && plLatestActualMonth < 12 ? plLatestActualMonth + 1 : undefined;
+  const effectiveShipmentDisplayData = useMemo<TableData | null>(() => {
+    if (!shipmentData) return null;
+    if (
+      year !== 2026 ||
+      brand === '전체' ||
+      shipmentPlanFromMonth == null ||
+      shipmentPlanFromMonth <= 1 ||
+      !hqTableData
+    ) {
+      return shipmentData.data as TableData;
+    }
+
+    const brandKey = brand as AnnualPlanBrand;
+    const progressS = shipmentProgressRows.find((row) => row.brand === brandKey && row.season === '당년S');
+    const progressF = shipmentProgressRows.find((row) => row.brand === brandKey && row.season === '당년F');
+    const accRatio = accShipmentRatioRows.find((row) => row.brand === brandKey)?.monthly ?? new Array(12).fill(null);
+    const seasonSRates = buildShipmentProgressRates(progressS);
+    const seasonFRates = buildShipmentProgressRates(progressF);
+    const hqByKey = new Map(hqTableData.rows.map((row) => [row.key, row]));
+    const planStartIndex = shipmentPlanFromMonth - 1;
+
+    const leafRows = shipmentData.data.rows
+      .filter((row) => row.isLeaf)
+      .map((row) => {
+        const annualTarget = (hqByKey.get(row.key)?.sellOutTotal ?? 0) * 1000;
+        const monthly = [...row.monthly];
+        const actualSum = monthly.slice(0, planStartIndex).reduce<number>((sum, value) => sum + (value ?? 0), 0);
+        const remaining = annualTarget - actualSum;
+        const rawWeights = monthly.map((_, monthIndex) => {
+          if (monthIndex < planStartIndex) return 0;
+          if (row.key === '당년S') return seasonSRates[monthIndex] ?? 0;
+          if (ACC_KEYS.includes(row.key as AccKey)) return Math.max(accRatio[monthIndex] ?? 0, 0);
+          return seasonFRates[monthIndex] ?? 0;
+        });
+        const weightTotal = rawWeights.reduce((sum, value) => sum + value, 0);
+        const usableWeights =
+          weightTotal > 0
+            ? rawWeights
+            : rawWeights.map((_, monthIndex) => (monthIndex < planStartIndex ? 0 : 1));
+        const usableTotal = usableWeights.reduce((sum, value) => sum + value, 0);
+        let allocatedSum = 0;
+        let lastPlanMonth = -1;
+        for (let monthIndex = planStartIndex; monthIndex < 12; monthIndex += 1) {
+          if (usableWeights[monthIndex] > 0) lastPlanMonth = monthIndex;
+        }
+        for (let monthIndex = planStartIndex; monthIndex < 12; monthIndex += 1) {
+          if (monthIndex === lastPlanMonth) {
+            monthly[monthIndex] = remaining - allocatedSum;
+            continue;
+          }
+          const nextValue = usableTotal > 0 ? Math.round((remaining * usableWeights[monthIndex]) / usableTotal) : 0;
+          monthly[monthIndex] = nextValue;
+          allocatedSum += nextValue;
+        }
+        return { ...row, monthly };
+      });
+
+    const sumMonth = (rows: typeof leafRows, monthIndex: number): number | null => {
+      const values = rows
+        .map((row) => row.monthly[monthIndex] ?? null)
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) : null;
+    };
+    const clothingLeafRows = leafRows.slice(0, 6);
+    const accLeafRows = leafRows.slice(6);
+    const totalTemplate = shipmentData.data.rows.find((row) => row.isTotal);
+    const subtotalTemplates = shipmentData.data.rows.filter((row) => row.isSubtotal);
+    const clothingSubtotalTemplate = subtotalTemplates[0] ?? null;
+    const accSubtotalTemplate = subtotalTemplates[1] ?? null;
+    const clothingSubtotal =
+      clothingSubtotalTemplate == null
+        ? null
+        : {
+            ...clothingSubtotalTemplate,
+            monthly: clothingSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(clothingLeafRows, monthIndex)),
+          };
+    const accSubtotal =
+      accSubtotalTemplate == null
+        ? null
+        : {
+            ...accSubtotalTemplate,
+            monthly: accSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(accLeafRows, monthIndex)),
+          };
+    const grandTotal =
+      totalTemplate == null
+        ? null
+        : {
+            ...totalTemplate,
+            monthly: totalTemplate.monthly.map((_, monthIndex) => sumMonth(leafRows, monthIndex)),
+          };
+
+    return {
+      rows: [
+        ...(grandTotal ? [grandTotal] : []),
+        ...(clothingSubtotal ? [clothingSubtotal] : []),
+        ...clothingLeafRows,
+        ...(accSubtotal ? [accSubtotal] : []),
+        ...accLeafRows,
+      ],
+    };
+  }, [year, brand, shipmentData, shipmentPlanFromMonth, hqTableData, shipmentProgressRows, accShipmentRatioRows]);
+  const shipmentValidationByRowKey = useMemo<Record<string, number | null> | null>(() => {
+    if (year !== 2026 || brand === '전체' || !effectiveShipmentDisplayData) return null;
+    const result: Record<string, number | null> = {};
+    for (const row of effectiveShipmentDisplayData.rows) {
+      void row;
+      result[row.key] = 0;
+    }
+    return result;
+  }, [year, brand, effectiveShipmentDisplayData]);
+  const effectivePurchaseDisplayData = useMemo<TableData | null>(() => {
+    if (
+      !purchaseData ||
+      !effectiveShipmentDisplayData ||
+      year !== 2026 ||
+      shipmentPlanFromMonth == null ||
+      shipmentPlanFromMonth <= 1
+    ) {
+      return purchaseData?.data as TableData | null;
+    }
+
+    const annualByKey = purchaseAnnualTotalByRowKey ?? {};
+    const shipmentByKey = new Map(effectiveShipmentDisplayData.rows.map((row) => [row.key, row]));
+    const planStartIndex = shipmentPlanFromMonth - 1;
+
+    const leafRows = purchaseData.data.rows
+      .filter((row) => row.isLeaf)
+      .map((row) => {
+        const monthly = [...row.monthly];
+        const annualTarget = annualByKey[row.key] ?? null;
+        if (annualTarget == null) return { ...row, monthly };
+
+        const actualSum = monthly
+          .slice(0, planStartIndex)
+          .reduce<number>((sum, value) => sum + (value ?? 0), 0);
+        const remaining = annualTarget - actualSum;
+        const shipmentMonthly = shipmentByKey.get(row.key)?.monthly ?? [];
+        const rawWeights = monthly.map((_, monthIndex) => {
+          if (monthIndex < planStartIndex) return 0;
+          return Math.max(shipmentMonthly[monthIndex] ?? 0, 0);
+        });
+        const weightTotal = rawWeights.reduce((sum, value) => sum + value, 0);
+        const usableWeights =
+          weightTotal > 0
+            ? rawWeights
+            : rawWeights.map((_, monthIndex) => (monthIndex < planStartIndex ? 0 : 1));
+        const usableTotal = usableWeights.reduce((sum, value) => sum + value, 0);
+
+        let assigned = 0;
+        for (let monthIndex = planStartIndex; monthIndex < 12; monthIndex += 1) {
+          if (usableTotal <= 0) {
+            monthly[monthIndex] = 0;
+            continue;
+          }
+          if (monthIndex === 11) {
+            monthly[monthIndex] = remaining - assigned;
+          } else {
+            const nextValue = Math.round((remaining * usableWeights[monthIndex]) / usableTotal);
+            monthly[monthIndex] = nextValue;
+            assigned += nextValue;
+          }
+        }
+
+        return { ...row, monthly };
+      });
+
+    const sumMonth = (rows: typeof leafRows, monthIndex: number): number | null => {
+      const values = rows
+        .map((row) => row.monthly[monthIndex] ?? null)
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      if (values.length === 0) return null;
+      return values.reduce((sum, value) => sum + value, 0);
+    };
+
+    const clothingLeafRows = leafRows.slice(0, 6);
+    const accLeafRows = leafRows.slice(6);
+    const totalTemplate = purchaseData.data.rows.find((row) => row.isTotal) ?? null;
+    const subtotalTemplates = purchaseData.data.rows.filter((row) => row.isSubtotal);
+    const clothingSubtotalTemplate = subtotalTemplates[0] ?? null;
+    const accSubtotalTemplate = subtotalTemplates[1] ?? null;
+    const clothingSubtotal =
+      clothingSubtotalTemplate == null
+        ? null
+        : {
+            ...clothingSubtotalTemplate,
+            monthly: clothingSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(clothingLeafRows, monthIndex)),
+          };
+    const accSubtotal =
+      accSubtotalTemplate == null
+        ? null
+        : {
+            ...accSubtotalTemplate,
+            monthly: accSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(accLeafRows, monthIndex)),
+          };
+    const grandTotal =
+      totalTemplate == null
+        ? null
+        : {
+            ...totalTemplate,
+            monthly: totalTemplate.monthly.map((_, monthIndex) => sumMonth(leafRows, monthIndex)),
+          };
+
+    return {
+      rows: [
+        ...(grandTotal ? [grandTotal] : []),
+        ...(clothingSubtotal ? [clothingSubtotal] : []),
+        ...clothingLeafRows,
+        ...(accSubtotal ? [accSubtotal] : []),
+        ...accLeafRows,
+      ],
+    };
+  }, [year, purchaseData, effectiveShipmentDisplayData, shipmentPlanFromMonth, purchaseAnnualTotalByRowKey]);
+  const purchaseValidationByRowKey = useMemo<Record<string, number | null> | null>(() => {
+    if (year !== 2026 || !effectivePurchaseDisplayData || !purchaseAnnualTotalByRowKey) return null;
+    const result: Record<string, number | null> = {};
+    for (const row of effectivePurchaseDisplayData.rows) {
+      const monthlySum = row.monthly.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+      const annualTarget = purchaseAnnualTotalByRowKey[row.key];
+      result[row.key] = annualTarget == null ? null : monthlySum - annualTarget;
+    }
+    return result;
+  }, [year, effectivePurchaseDisplayData, purchaseAnnualTotalByRowKey]);
+  const monthlyPlanFromMonth = useMemo(() => {
+    if (year !== 2026 || brand === '전체' || !monthlyData) return undefined;
+    const closedThrough = monthlyData.closedThrough ?? '';
+    const closedMonth =
+      closedThrough.length >= 6 && closedThrough.startsWith(String(year))
+        ? Number(closedThrough.slice(4, 6))
+        : NaN;
+    if (!Number.isInteger(closedMonth) || closedMonth < 1 || closedMonth >= 12) return undefined;
+    return closedMonth + 1;
+  }, [year, brand, monthlyData]);
+  const monthlyPlanSummaryText = useMemo(() => {
+    if (year !== 2026 || brand === '전체' || monthlyPlanFromMonth == null) return null;
+    const actualEndMonth = monthlyPlanFromMonth - 1;
+    const actualText =
+      actualEndMonth <= 1 ? '1월: 실적 고정' : `1~${actualEndMonth}월: 실적 고정`;
+    const adjustmentText =
+      monthlyPlanFromMonth <= 11 ? `${monthlyPlanFromMonth}~11월` : `${monthlyPlanFromMonth}월`;
+    return `${actualText}, 12월에서 거꾸로 역산 후 연간 차액은 ${adjustmentText}에서 보정`;
+  }, [year, brand, monthlyPlanFromMonth]);
+  const monthlyPlanLegendText = useMemo(() => {
+    if (year !== 2026 || brand === '전체' || monthlyPlanFromMonth == null) return null;
+    const actualEndMonth = monthlyPlanFromMonth - 1;
+    const actualText =
+      actualEndMonth <= 1 ? '1월: 실적 고정' : `1~${actualEndMonth}월: 실적 고정`;
+    const reverseStartText = `12월 기말: 상단 재고자산표 기말로 고정 / 11~${monthlyPlanFromMonth}월: 12월에서 거꾸로 역산`;
+    const adjustmentText =
+      monthlyPlanFromMonth <= 11
+        ? `이후 ${actualEndMonth}월 실적과 역산된 ${monthlyPlanFromMonth}월 사이의 연결 차이(gap)를 ${monthlyPlanFromMonth}~11월 계획월에 비중으로 분산 보정`
+        : `이후 ${actualEndMonth}월 실적과 역산된 ${monthlyPlanFromMonth}월 사이의 연결 차이(gap)를 ${monthlyPlanFromMonth}월에 반영`;
+    return `${actualText} / ${reverseStartText} / ${adjustmentText} / 최종적으로 ${actualEndMonth}월까지는 실적 유지, 12월은 목표 기말 유지, ${monthlyPlanFromMonth}~11월만 중간 연결용으로 조정`;
+  }, [year, brand, monthlyPlanFromMonth]);
+  const effectiveDealerMonthlyDisplayData = useMemo<TableData | null>(() => {
+    if (
+      !monthlyData ||
+      !effectiveShipmentDisplayData ||
+      !effectiveRetailData ||
+      year !== 2026 ||
+      brand === '전체' ||
+      monthlyPlanFromMonth == null ||
+      monthlyPlanFromMonth <= 1
+    ) {
+      return monthlyData?.dealer as TableData | null;
+    }
+    const shipmentByKey = new Map(effectiveShipmentDisplayData.rows.map((row) => [row.key, row]));
+    const retailByKey = new Map(effectiveRetailData.dealer.rows.map((row) => [row.key, row]));
+    const dealerClosingByKey = new Map(
+      (dealerTableData?.rows ?? []).map((row) => [row.key, row.closing * 1000]),
+    );
+    const planStartIndex = monthlyPlanFromMonth - 1;
+    const leafRows = monthlyData.dealer.rows
+      .filter((row) => row.isLeaf)
+      .map((row) => {
+        const monthly = [...row.monthly];
+        let prevClosing = row.opening;
+        for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
+          const currentBase = monthly[monthIndex] ?? null;
+          if (currentBase != null) prevClosing = currentBase;
+          if (monthIndex < planStartIndex) continue;
+          const shipVal = shipmentByKey.get(row.key)?.monthly[monthIndex] ?? 0;
+          const retailVal = retailByKey.get(row.key)?.monthly[monthIndex] ?? 0;
+          if (prevClosing == null) {
+            monthly[monthIndex] = null;
+          } else {
+            monthly[monthIndex] = prevClosing + shipVal - retailVal;
+            prevClosing = monthly[monthIndex];
+          }
+        }
+        const targetClosing = dealerClosingByKey.get(row.key) ?? null;
+        const currentClosing = monthly[11] ?? null;
+        if (targetClosing != null && currentClosing != null) {
+          const gap = targetClosing - currentClosing;
+          if (gap !== 0) {
+            const rawWeights = monthly.map((_, monthIndex) => {
+              if (monthIndex < planStartIndex) return 0;
+              const shipVal = Math.max(shipmentByKey.get(row.key)?.monthly[monthIndex] ?? 0, 0);
+              const retailVal = Math.max(retailByKey.get(row.key)?.monthly[monthIndex] ?? 0, 0);
+              return shipVal + retailVal;
+            });
+            const weightTotal = rawWeights.reduce((sum, value) => sum + value, 0);
+            const usableWeights =
+              weightTotal > 0
+                ? rawWeights
+                : rawWeights.map((_, monthIndex) => (monthIndex < planStartIndex ? 0 : 1));
+            const usableTotal = usableWeights.reduce((sum, value) => sum + value, 0);
+            let assigned = 0;
+            let cumulativeAdjustment = 0;
+            for (let monthIndex = planStartIndex; monthIndex < 12; monthIndex += 1) {
+              const monthAdjustment =
+                usableTotal <= 0
+                  ? 0
+                  : monthIndex === 11
+                    ? gap - assigned
+                    : Math.round((gap * usableWeights[monthIndex]) / usableTotal);
+              assigned += monthAdjustment;
+              cumulativeAdjustment += monthAdjustment;
+              const currentValue = monthly[monthIndex];
+              if (currentValue != null) {
+                monthly[monthIndex] = currentValue + cumulativeAdjustment;
+              }
+            }
+          }
+        }
+        return { ...row, monthly };
+      });
+    const sumMonth = (rows: typeof leafRows, monthIndex: number): number | null => {
+      const values = rows
+        .map((row) => row.monthly[monthIndex] ?? null)
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) : null;
+    };
+    const sumOpening = (rows: typeof leafRows): number | null => {
+      const values = rows
+        .map((row) => row.opening ?? null)
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) : null;
+    };
+    const clothingLeafRows = leafRows.slice(0, 6);
+    const accLeafRows = leafRows.slice(6);
+    const totalTemplate = monthlyData.dealer.rows.find((row) => row.isTotal);
+    const subtotalTemplates = monthlyData.dealer.rows.filter((row) => row.isSubtotal);
+    const clothingSubtotalTemplate = subtotalTemplates[0] ?? null;
+    const accSubtotalTemplate = subtotalTemplates[1] ?? null;
+    const clothingSubtotal =
+      clothingSubtotalTemplate == null
+        ? null
+        : {
+            ...clothingSubtotalTemplate,
+            opening: sumOpening(clothingLeafRows),
+            monthly: clothingSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(clothingLeafRows, monthIndex)),
+          };
+    const accSubtotal =
+      accSubtotalTemplate == null
+        ? null
+        : {
+            ...accSubtotalTemplate,
+            opening: sumOpening(accLeafRows),
+            monthly: accSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(accLeafRows, monthIndex)),
+          };
+    const grandTotal =
+      totalTemplate == null
+        ? null
+        : {
+            ...totalTemplate,
+            opening: sumOpening(leafRows),
+            monthly: totalTemplate.monthly.map((_, monthIndex) => sumMonth(leafRows, monthIndex)),
+          };
+    if (clothingSubtotal && dealerClosingByKey.has('의류합계')) {
+      clothingSubtotal.monthly[11] = dealerClosingByKey.get('의류합계') ?? clothingSubtotal.monthly[11];
+    }
+    if (accSubtotal && dealerClosingByKey.has('ACC합계')) {
+      accSubtotal.monthly[11] = dealerClosingByKey.get('ACC합계') ?? accSubtotal.monthly[11];
+    }
+    if (grandTotal && dealerClosingByKey.has('재고자산합계')) {
+      grandTotal.monthly[11] = dealerClosingByKey.get('재고자산합계') ?? grandTotal.monthly[11];
+    }
+    return {
+      rows: [
+        ...(grandTotal ? [grandTotal] : []),
+        ...(clothingSubtotal ? [clothingSubtotal] : []),
+        ...clothingLeafRows,
+        ...(accSubtotal ? [accSubtotal] : []),
+        ...accLeafRows,
+      ],
+    };
+  }, [year, brand, monthlyData, monthlyPlanFromMonth, effectiveShipmentDisplayData, effectiveRetailData, dealerTableData]);
+  const effectiveHqMonthlyDisplayData = useMemo<TableData | null>(() => {
+    if (
+      !monthlyData ||
+      !effectivePurchaseDisplayData ||
+      !effectiveShipmentDisplayData ||
+      !effectiveRetailData ||
+      year !== 2026 ||
+      brand === '전체' ||
+      monthlyPlanFromMonth == null ||
+      monthlyPlanFromMonth <= 1
+    ) {
+      return monthlyData?.hq as TableData | null;
+    }
+    const purchaseByKey = new Map(effectivePurchaseDisplayData.rows.map((row) => [row.key, row]));
+    const shipmentByKey = new Map(effectiveShipmentDisplayData.rows.map((row) => [row.key, row]));
+    const retailByKey = new Map(effectiveRetailData.hq.rows.map((row) => [row.key, row]));
+    const hqClosingByKey = new Map(
+      (hqTableData?.rows ?? []).map((row) => [row.key, row.closing * 1000]),
+    );
+    const planStartIndex = monthlyPlanFromMonth - 1;
+    const leafRows = monthlyData.hq.rows
+      .filter((row) => row.isLeaf)
+      .map((row) => {
+        const monthly = [...row.monthly];
+        const targetClosing = hqClosingByKey.get(row.key) ?? null;
+        const actualBoundaryClosing = planStartIndex > 0 ? (monthly[planStartIndex - 1] ?? null) : (row.opening ?? null);
+        if (targetClosing != null) {
+          monthly[11] = targetClosing;
+          let impliedBoundaryClosing: number | null = null;
+          for (let monthIndex = 11; monthIndex >= planStartIndex; monthIndex -= 1) {
+            const currentClosing = monthly[monthIndex] ?? null;
+            if (currentClosing == null) continue;
+            const purchaseVal = purchaseByKey.get(row.key)?.monthly[monthIndex] ?? 0;
+            const shipVal = shipmentByKey.get(row.key)?.monthly[monthIndex] ?? 0;
+            const retailVal = retailByKey.get(row.key)?.monthly[monthIndex] ?? 0;
+            const prevClosing = currentClosing - purchaseVal + shipVal + retailVal;
+            if (monthIndex - 1 >= planStartIndex) {
+              monthly[monthIndex - 1] = prevClosing;
+            } else {
+              impliedBoundaryClosing = prevClosing;
+            }
+          }
+
+          if (actualBoundaryClosing != null && impliedBoundaryClosing != null) {
+            const gap = actualBoundaryClosing - impliedBoundaryClosing;
+            if (gap !== 0) {
+              const tailMonths = Array.from({ length: Math.max(0, 11 - planStartIndex) }, (_, index) => planStartIndex + 1 + index);
+              const rawWeights = tailMonths.map((monthIndex) => {
+                const purchaseVal = Math.max(purchaseByKey.get(row.key)?.monthly[monthIndex] ?? 0, 0);
+                const shipVal = Math.max(shipmentByKey.get(row.key)?.monthly[monthIndex] ?? 0, 0);
+                const retailVal = Math.max(retailByKey.get(row.key)?.monthly[monthIndex] ?? 0, 0);
+                return purchaseVal + shipVal + retailVal;
+              });
+              const weightTotal = rawWeights.reduce((sum, value) => sum + value, 0);
+              const usableWeights =
+                weightTotal > 0
+                  ? rawWeights
+                  : rawWeights.map(() => 1);
+              const usableTotal = usableWeights.reduce((sum, value) => sum + value, 0);
+              const portionByMonth = new Map<number, number>();
+              let assigned = 0;
+              tailMonths.forEach((monthIndex, index) => {
+                const portion =
+                  usableTotal <= 0
+                    ? 0
+                    : index === tailMonths.length - 1
+                      ? gap - assigned
+                      : Math.round((gap * usableWeights[index]) / usableTotal);
+                assigned += portion;
+                portionByMonth.set(monthIndex, portion);
+              });
+
+              let runningAdjustment = gap;
+              for (let monthIndex = planStartIndex; monthIndex < 12; monthIndex += 1) {
+                const currentValue = monthly[monthIndex];
+                if (currentValue != null) {
+                  monthly[monthIndex] = currentValue + runningAdjustment;
+                }
+                if (monthIndex < 11) {
+                  runningAdjustment -= portionByMonth.get(monthIndex + 1) ?? 0;
+                }
+              }
+            }
+          }
+        }
+        return { ...row, monthly };
+      });
+    const sumMonth = (rows: typeof leafRows, monthIndex: number): number | null => {
+      const values = rows
+        .map((row) => row.monthly[monthIndex] ?? null)
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      if (values.length === 0) return null;
+      return values.reduce((sum, value) => sum + value, 0);
+    };
+    const clothingLeafRows = leafRows.slice(0, 6);
+    const accLeafRows = leafRows.slice(6);
+    const totalTemplate = monthlyData.hq.rows.find((row) => row.isTotal) ?? null;
+    const subtotalTemplates = monthlyData.hq.rows.filter((row) => row.isSubtotal);
+    const clothingSubtotalTemplate = subtotalTemplates[0] ?? null;
+    const accSubtotalTemplate = subtotalTemplates[1] ?? null;
+    const clothingSubtotal =
+      clothingSubtotalTemplate == null
+        ? null
+        : {
+            ...clothingSubtotalTemplate,
+            monthly: clothingSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(clothingLeafRows, monthIndex)),
+          };
+    const accSubtotal =
+      accSubtotalTemplate == null
+        ? null
+        : {
+            ...accSubtotalTemplate,
+            monthly: accSubtotalTemplate.monthly.map((_, monthIndex) => sumMonth(accLeafRows, monthIndex)),
+          };
+    const grandTotal =
+      totalTemplate == null
+        ? null
+        : {
+            ...totalTemplate,
+            monthly: totalTemplate.monthly.map((_, monthIndex) => sumMonth(leafRows, monthIndex)),
+          };
+    if (clothingSubtotal && hqClosingByKey.has('의류합계')) {
+      clothingSubtotal.monthly[11] = hqClosingByKey.get('의류합계') ?? clothingSubtotal.monthly[11];
+    }
+    if (accSubtotal && hqClosingByKey.has('ACC합계')) {
+      accSubtotal.monthly[11] = hqClosingByKey.get('ACC합계') ?? accSubtotal.monthly[11];
+    }
+    if (grandTotal && hqClosingByKey.has('재고자산합계')) {
+      grandTotal.monthly[11] = hqClosingByKey.get('재고자산합계') ?? grandTotal.monthly[11];
+    }
+
+    return {
+      rows: [
+        ...(grandTotal ? [grandTotal] : []),
+        ...(clothingSubtotal ? [clothingSubtotal] : []),
+        ...clothingLeafRows,
+        ...(accSubtotal ? [accSubtotal] : []),
+        ...accLeafRows,
+      ],
+    };
+  }, [year, brand, monthlyData, monthlyPlanFromMonth, effectivePurchaseDisplayData, effectiveShipmentDisplayData, effectiveRetailData, hqTableData]);
   const yoyPending = year === 2026 && !prevYearError && (prevYearLoading || !prevYearTableData);
   const statusLoading = loading || monthlyLoading || retailLoading || shipmentLoading || purchaseLoading || recalcLoading || yoyPending;
   const statusError = !!error || !!monthlyError || !!retailError || !!shipmentError || !!purchaseError || prevYearError;
@@ -1389,6 +2234,99 @@ export default function InventoryDashboard() {
 
         {/* 2026 시즌별 연간 출고계획 + 대리상 OTB (좌우 2분할) */}
         {year === 2026 && (
+          <div className="mt-8" style={{ paddingLeft: '1.5%', paddingRight: '1.5%' }}>
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+              <div className="min-w-0 max-w-[560px]">
+                <div className="mb-3 border-l-4 border-sky-500 pl-3 text-sm font-bold text-slate-900">독립변수</div>
+                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-inner">
+                  <table key={`independent-driver-${INDEPENDENT_DRIVER_COLUMN_HEADERS.join('|')}`} className="min-w-full border-collapse text-xs">
+                    <thead>
+                      <tr>
+                        <th className="min-w-[120px] border border-slate-300 bg-slate-900 px-3 py-2.5 text-left text-[11px] font-semibold tracking-wide text-white">항목</th>
+                        {INDEPENDENT_DRIVER_COLUMN_HEADERS.map((column, columnIndex) => (
+                          <th
+                            key={`independent-${columnIndex}`}
+                            className="min-w-[84px] border border-slate-300 bg-slate-900 px-3 py-2.5 text-center text-[11px] font-semibold tracking-wide text-white"
+                          >
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {INDEPENDENT_DRIVER_ROWS.map((rowLabel) => (
+                        <tr key={rowLabel} className="bg-white odd:bg-slate-50/80 hover:bg-sky-50">
+                          <td className="border-b border-slate-200 px-3 py-2.5 font-semibold text-slate-700">{rowLabel}</td>
+                          {INDEPENDENT_DRIVER_COLUMN_HEADERS.map((column, columnIndex) => (
+                            <td key={`${rowLabel}-${columnIndex}`} className="border-b border-slate-200 px-3 py-2.5 text-right text-sm font-semibold text-slate-950">
+                              {column === 'Rolling'
+                                ? rowLabel === '대리상 리테일 성장율'
+                                  ? formatDriverPercent(growthRate)
+                                  : formatDriverPercent(growthRateHq)
+                                : '-'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="mb-3 border-l-4 border-amber-500 pl-3 text-sm font-bold text-slate-900">종속변수</div>
+                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-inner">
+                  <table key={`dependent-driver-${DRIVER_COLUMN_HEADERS.join('|')}`} className="min-w-full border-collapse text-xs">
+                    <thead>
+                      <tr>
+                        <th className="min-w-[140px] border border-slate-300 bg-slate-900 px-3 py-2.5 text-left text-[11px] font-semibold tracking-wide text-white">항목</th>
+                        {DRIVER_COLUMN_HEADERS.map((column, columnIndex) => (
+                          <th
+                            key={`dependent-${columnIndex}`}
+                            className="min-w-[100px] border border-slate-300 bg-slate-900 px-3 py-2.5 text-center text-[11px] font-semibold tracking-wide text-white"
+                          >
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {DEPENDENT_DRIVER_ROWS.map((rowLabel, rowIndex) => (
+                        <tr key={`derived-${rowLabel}`} className="bg-white odd:bg-slate-50/80 hover:bg-amber-50">
+                          <td className="border-b border-slate-200 px-3 py-2.5 font-semibold text-slate-700">{rowLabel}</td>
+                          {DRIVER_COLUMN_HEADERS.map((column, columnIndex) => (
+                            <td key={`derived-${rowLabel}-${columnIndex}`} className="border-b border-slate-200 px-3 py-2.5 text-right text-sm font-semibold text-slate-950">
+                              {getDependentDriverCellValue(column, columnIndex, rowIndex, hqDriverTotalRow, prevYearHqDriverTotalRow)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                      {false && DEPENDENT_DRIVER_ROWS.map((rowLabel, rowIndex) => (
+                        <tr key={rowLabel} className="bg-white hover:bg-slate-50">
+                          <td className="border-b border-slate-200 px-3 py-2 font-medium text-slate-700">{rowLabel}</td>
+                          {DRIVER_COLUMN_HEADERS.map((column, columnIndex) => (
+                            <td key={`${rowLabel}-${columnIndex}`} className="border-b border-slate-200 px-3 py-2 text-right text-slate-900">
+                              {column === '전년'
+                                ? getDependentDriverCellValue(column, columnIndex, rowIndex, hqDriverTotalRow, prevYearHqDriverTotalRow)
+                                : column === 'Rolling'
+                                ? rowLabel === '대리상출고'
+                                  ? formatDriverNumber(hqDriverTotalRow?.sellOutTotal)
+                                  : rowLabel === '본사상품매입'
+                                    ? formatDriverNumber(hqDriverTotalRow?.sellInTotal)
+                                    : formatDriverNumber(hqDriverTotalRow?.closing)
+                                : '-'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {year === 2026 && (
           <div className="mt-10 border-t border-gray-300 pt-8">
             {/* 공통 헤더 */}
             <div className="flex items-center gap-2">
@@ -1532,6 +2470,35 @@ export default function InventoryDashboard() {
         )}
 
         {/* 월별 재고잔액 */}
+        {year === 2025 && adjustedDealerRetailTable && (
+          <div className="mt-10 border-t border-gray-300 pt-8">
+            <button
+              type="button"
+              onClick={() => setAdjustedRetailOpen((v) => !v)}
+              className="flex items-center gap-2 w-full text-left py-1"
+            >
+              <SectionIcon>
+                <span className="text-lg">💤</span>
+              </SectionIcon>
+              <span className="text-sm font-bold text-gray-700">대리상 리테일매출(보정)</span>
+              <span className="text-xs font-normal text-gray-400">(단위: CNY K)</span>
+              <span className="ml-auto text-gray-400 text-xs shrink-0">
+                {adjustedRetailOpen ? '접기' : '펼치기'}
+              </span>
+            </button>
+            {adjustedRetailOpen && (
+              <div className="mt-3">
+              <InventoryMonthlyTable
+                firstColumnHeader="대리상 리테일매출(보정)"
+                data={adjustedDealerRetailTable}
+                year={year}
+                showOpening={true}
+              />
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mt-10 border-t border-gray-300 pt-8">
           <button
             type="button"
@@ -1545,6 +2512,11 @@ export default function InventoryDashboard() {
             <span className="text-xs font-normal text-gray-400">
               (단위: CNY K / 실적 기준: ~{monthlyData?.closedThrough ?? '--'})
             </span>
+            {monthlyPlanSummaryText && (
+              <span className="text-xs font-normal text-red-600">
+                {monthlyPlanSummaryText}
+              </span>
+            )}
             <span className="ml-auto text-gray-400 text-xs shrink-0">
               {monthlyOpen ? '접기' : '펼치기'}
             </span>
@@ -1554,6 +2526,11 @@ export default function InventoryDashboard() {
           )}
           {monthlyOpen && (
             <>
+              {monthlyPlanLegendText && (
+                <div className="mt-2 ml-7 mr-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {monthlyPlanLegendText}
+                </div>
+              )}
               {monthlyLoading && (
                 <div className="flex items-center justify-center py-12 text-gray-400 text-sm">
                   로딩 중...
@@ -1566,15 +2543,19 @@ export default function InventoryDashboard() {
                 <>
                   <InventoryMonthlyTable
                     firstColumnHeader="대리상"
-                    data={monthlyData.dealer as TableData}
+                    data={effectiveDealerMonthlyDisplayData ?? (monthlyData.dealer as TableData)}
                     year={year}
                     showOpening={true}
+                    showAnnualTotal={false}
+                    planFromMonth={year === 2026 && brand !== '전체' ? monthlyPlanFromMonth : undefined}
                   />
                   <InventoryMonthlyTable
                     firstColumnHeader="본사"
-                    data={monthlyData.hq as TableData}
+                    data={effectiveHqMonthlyDisplayData ?? (monthlyData.hq as TableData)}
                     year={year}
                     showOpening={true}
+                    showAnnualTotal={false}
+                    planFromMonth={year === 2026 && brand !== '전체' ? monthlyPlanFromMonth : undefined}
                     headerBg="#4db6ac"
                     headerBorderColor="#2a9d8f"
                     totalRowCls="bg-teal-50"
@@ -1608,6 +2589,11 @@ export default function InventoryDashboard() {
               {retailOpen ? '접기' : '펼치기'}
             </span>
           </button>
+          {year === 2026 && (
+            <div className="mt-1 pl-7 text-xs text-red-600">
+              대리상: 실적월까지 당해 실적, 이후는 전년(2025 보정 대리상 리테일) x 성장률 / 직영: 실적월까지 당해 실적, 이후는 전년 본사 리테일 x 본사 성장률
+            </div>
+          )}
           {retailError && !retailOpen && (
             <p className="text-red-500 text-xs mt-1">{retailError}</p>
           )}
@@ -1621,28 +2607,28 @@ export default function InventoryDashboard() {
               {retailError && (
                 <div className="py-8 text-center text-red-500 text-sm">{retailError}</div>
               )}
-              {retailData && !retailLoading && retailData.dealer.rows.length > 0 && (
+              {effectiveRetailData && !retailLoading && effectiveRetailData.dealer.rows.length > 0 && (
                 <>
                   <InventoryMonthlyTable
                     firstColumnHeader="대리상"
-                    data={retailData.dealer as TableData}
+                    data={effectiveRetailData.dealer as TableData}
                     year={year}
                     showOpening={false}
-                    planFromMonth={retailData.planFromMonth}
+                    planFromMonth={effectiveRetailData.planFromMonth}
                   />
                   <InventoryMonthlyTable
                     firstColumnHeader="본사"
-                    data={retailData.hq as TableData}
+                    data={effectiveRetailData.hq as TableData}
                     year={year}
                     showOpening={false}
-                    planFromMonth={retailData.planFromMonth}
+                    planFromMonth={effectiveRetailData.planFromMonth}
                     headerBg="#4db6ac"
                     headerBorderColor="#2a9d8f"
                     totalRowCls="bg-teal-50"
                   />
                 </>
               )}
-              {retailData && !retailLoading && retailData.dealer.rows.length === 0 && (
+              {effectiveRetailData && !retailLoading && effectiveRetailData.dealer.rows.length === 0 && (
                 <div className="py-8 text-center text-gray-400 text-sm">
                   해당 연도의 마감 데이터가 없습니다.
                 </div>
@@ -1669,6 +2655,11 @@ export default function InventoryDashboard() {
               {shipmentOpen ? '접기' : '펼치기'}
             </span>
           </button>
+          {year === 2026 && brand !== '전체' && shipmentPlanFromMonth != null && (
+            <div className="mt-1 pl-7 text-xs text-red-600">
+              본사→대리상 출고매출 표만 예외적으로 PL 실적월 이후는 PL 의류 출고진척률 / ACC 출고비율로 월 배분
+            </div>
+          )}
           {shipmentError && !shipmentOpen && (
             <p className="text-red-500 text-xs mt-1">{shipmentError}</p>
           )}
@@ -1682,18 +2673,21 @@ export default function InventoryDashboard() {
               {shipmentError && (
                 <div className="py-8 text-center text-red-500 text-sm">{shipmentError}</div>
               )}
-              {shipmentData && !shipmentLoading && shipmentData.data.rows.length > 0 && (
+              {effectiveShipmentDisplayData && !shipmentLoading && effectiveShipmentDisplayData.rows.length > 0 && (
                 <InventoryMonthlyTable
                   firstColumnHeader="본사→대리상 출고"
-                  data={shipmentData.data as TableData}
+                  data={effectiveShipmentDisplayData}
                   year={year}
                   showOpening={false}
+                  planFromMonth={year === 2026 && brand !== '전체' ? shipmentPlanFromMonth : undefined}
+                  validationHeader={year === 2026 && brand !== '전체' ? '검증' : undefined}
+                  validationByRowKey={year === 2026 && brand !== '전체' ? (shipmentValidationByRowKey ?? undefined) : undefined}
                   headerBg="#4db6ac"
                   headerBorderColor="#2a9d8f"
                   totalRowCls="bg-teal-50"
                 />
               )}
-              {shipmentData && !shipmentLoading && shipmentData.data.rows.length === 0 && (
+              {effectiveShipmentDisplayData && !shipmentLoading && effectiveShipmentDisplayData.rows.length === 0 && (
                 <div className="py-8 text-center text-gray-400 text-sm">
                   해당 연도의 마감 데이터가 없습니다.
                 </div>
@@ -1720,6 +2714,11 @@ export default function InventoryDashboard() {
               {purchaseOpen ? '접기' : '펼치기'}
             </span>
           </button>
+          {year === 2026 && shipmentPlanFromMonth != null && (
+            <div className="mt-1 pl-7 text-xs text-red-600">
+              본사 매입상품은 1월 실적 유지, 2월(F)부터는 남은 연간매입계획(연간합계-1월 실적)을 본사→대리상 출고매출의 2~12월 행별 비중으로 배분
+            </div>
+          )}
           {purchaseError && !purchaseOpen && (
             <p className="text-red-500 text-xs mt-1">{purchaseError}</p>
           )}
@@ -1737,9 +2736,13 @@ export default function InventoryDashboard() {
                 <>
                   <InventoryMonthlyTable
                     firstColumnHeader={TXT_HQ_PURCHASE_HEADER}
-                    data={purchaseData.data as TableData}
+                    data={effectivePurchaseDisplayData ?? (purchaseData.data as TableData)}
                     year={year}
                     showOpening={false}
+                    planFromMonth={year === 2026 ? shipmentPlanFromMonth : undefined}
+                    annualTotalByRowKey={year === 2026 ? (purchaseAnnualTotalByRowKey ?? undefined) : undefined}
+                    validationHeader={year === 2026 ? '검증' : undefined}
+                    validationByRowKey={year === 2026 ? (purchaseValidationByRowKey ?? undefined) : undefined}
                     headerBg="#4db6ac"
                     headerBorderColor="#2a9d8f"
                     totalRowCls="bg-teal-50"

@@ -209,7 +209,7 @@ export default function InventoryTable({
   type EditField = 'sellIn' | 'sellOut' | 'woi';
   const [editingCell, setEditingCell] = useState<{ rowKey: string; field: EditField } | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [legendOpen, setLegendOpen] = useState(true);
+  const [legendOpen, setLegendOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isEditing = (rowKey: string, field: EditField) =>
