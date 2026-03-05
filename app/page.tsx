@@ -197,8 +197,8 @@ export default function Home() {
   const tabs = ['경영요약', '손익계산서', '재무상태표', '현금흐름표', '여신사용현황', '재고자산', 'PL(FY26 FCST)', 'CF'];
   const tabGroups = useMemo(
     () => [
-      { id: 'group1', label: '洹몃９1', tabIndexes: [0, 1, 2, 3] },
-      { id: 'group2', label: '洹몃９2', tabIndexes: [4, 5, 6, 7] },
+      { id: 'group1', label: '그룹1', tabIndexes: [0, 1, 2, 3] },
+      { id: 'group2', label: '그룹2', tabIndexes: [4, 5, 6, 7] },
     ],
     []
   );
