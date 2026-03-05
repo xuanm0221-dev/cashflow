@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface TabGroup {
   id: string;
@@ -27,6 +27,7 @@ export default function Tabs({ tabs, activeTab, onChange, groups }: TabsProps) {
   const tabGroups = groups && groups.length > 0 ? groups : defaultGroups;
   const [hiddenGroups, setHiddenGroups] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
+  const hasLoadedPreferenceRef = useRef(false);
 
   const visibleTabs = useMemo(() => {
     return tabs
@@ -45,6 +46,8 @@ export default function Tabs({ tabs, activeTab, onChange, groups }: TabsProps) {
   }, [activeTab, onChange, visibleTabs]);
 
   useEffect(() => {
+    if (hasLoadedPreferenceRef.current) return;
+    hasLoadedPreferenceRef.current = true;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;

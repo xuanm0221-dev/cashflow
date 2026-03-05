@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import Tabs from '@/components/Tabs';
@@ -23,14 +23,14 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<number>(5);
   const [inventoryTabMounted, setInventoryTabMounted] = useState<boolean>(true);
   const [plYear, setPlYear] = useState<number>(2026);
-  const [plBrand, setPlBrand] = useState<string | null>(null); // null=법인, 'mlb', 'kids' 등
+  const [plBrand, setPlBrand] = useState<string | null>(null); // null=踰뺤씤, 'mlb', 'kids' ??
   const [bsYear, setBsYear] = useState<number>(2026);
   const [cfYear, setCfYear] = useState<number>(2026);
-  const [baseMonth, setBaseMonth] = useState<number>(1); // 기준월 (기본 1월, 2026년 기본값)
-  const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(true); // 재무상태표 & 운전자본 월별 접기
-  const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(true); // 현금흐름표 월별 접기 (2025년 기본값: 접힘)
-  // 브랜드별 손익 보기는 항상 활성화 (법인 선택 시)
-  const [hideYtd, setHideYtd] = useState<boolean>(true); // YTD 숨기기 (기준월 12월일 때, 기본값: 숨김)
+  const [baseMonth, setBaseMonth] = useState<number>(1); // 湲곗???(湲곕낯 1?? 2026??湲곕낯媛?
+  const [bsMonthsCollapsed, setBsMonthsCollapsed] = useState<boolean>(true); // ?щТ?곹깭??& ?댁쟾?먮낯 ?붾퀎 ?묎린
+  const [cfMonthsCollapsed, setCfMonthsCollapsed] = useState<boolean>(true); // ?꾧툑?먮쫫???붾퀎 ?묎린 (2025??湲곕낯媛? ?묓옒)
+  // 釉뚮옖?쒕퀎 ?먯씡 蹂닿린????긽 ?쒖꽦??(踰뺤씤 ?좏깮 ??
+  const [hideYtd, setHideYtd] = useState<boolean>(true); // YTD ?④린湲?(湲곗???12?붿씪 ?? 湲곕낯媛? ?④?)
   const [summaryData, setSummaryData] = useState<ExecutiveSummaryData | null>(null);
   const [plData, setPlData] = useState<TableRow[] | null>(null);
   const [bsData, setBsData] = useState<TableRow[] | null>(null);
@@ -53,12 +53,12 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   
-  // 비고 데이터 관리
+  // 鍮꾧퀬 ?곗씠??愿由?
   const [bsRemarks, setBsRemarks] = useState<Map<string, string>>(new Map());
   const [wcRemarks, setWcRemarks] = useState<Map<string, string>>(new Map());
   const [wcRemarksAuto, setWcRemarksAuto] = useState<{ [key: string]: string } | null>(null);
 
-  // 비고 데이터 로드 (재무상태표 탭 진입 시 및 초기값으로 리셋 후 호출)
+  // 鍮꾧퀬 ?곗씠??濡쒕뱶 (?щТ?곹깭????吏꾩엯 ??諛?珥덇린媛믪쑝濡?由ъ뀑 ???몄텧)
   const loadRemarks = async (type: 'bs' | 'wc') => {
     try {
       const response = await fetch(`/api/remarks?type=${type}`);
@@ -74,7 +74,7 @@ export default function Home() {
         }
       }
     } catch (error) {
-      console.error('비고 로드 실패:', error);
+      console.error('鍮꾧퀬 濡쒕뱶 ?ㅽ뙣:', error);
     }
   };
 
@@ -91,7 +91,7 @@ export default function Home() {
     }
   }, [activeTab]);
 
-  // 비고 저장 함수 (디바운스)
+  // 鍮꾧퀬 ????⑥닔 (?붾컮?댁뒪)
   const saveRemarkDebounced = useMemo(() => {
     const timeouts: { [key: string]: NodeJS.Timeout } = {};
     
@@ -112,19 +112,19 @@ export default function Home() {
           const data = await response.json();
           
           if (!data.success) {
-            console.error('비고 저장 실패:', data.error || 'Unknown error');
-            // 에러가 발생해도 사용자 경험을 위해 조용히 실패 (콘솔에만 로그)
+            console.error('鍮꾧퀬 ????ㅽ뙣:', data.error || 'Unknown error');
+            // ?먮윭媛 諛쒖깮?대룄 ?ъ슜??寃쏀뿕???꾪빐 議곗슜???ㅽ뙣 (肄섏넄?먮쭔 濡쒓렇)
           } else {
-            console.log('비고 저장 성공:', account);
+            console.log('鍮꾧퀬 ????깃났:', account);
           }
         } catch (error) {
-          console.error('비고 저장 실패:', error);
+          console.error('鍮꾧퀬 ????ㅽ뙣:', error);
         }
-      }, 1000); // 1초 디바운스
+      }, 1000); // 1珥??붾컮?댁뒪
     };
   }, []);
 
-  // 비고 초기값으로 리셋 (KV 비우고 다시 로드)
+  // 鍮꾧퀬 珥덇린媛믪쑝濡?由ъ뀑 (KV 鍮꾩슦怨??ㅼ떆 濡쒕뱶)
   const resetRemarksData = async () => {
     try {
       setError(null);
@@ -143,19 +143,19 @@ export default function Home() {
       const dataBs = await resBs.json();
       const dataWc = await resWc.json();
       if (!dataBs.success || !dataWc.success) {
-        setError('비고 초기값 불러오기에 실패했습니다.');
+        setError('鍮꾧퀬 珥덇린媛?遺덈윭?ㅺ린???ㅽ뙣?덉뒿?덈떎.');
         return;
       }
       await loadRemarks('bs');
       await loadRemarks('wc');
-      alert('초기값으로 리셋되었습니다.');
+      alert('珥덇린媛믪쑝濡?由ъ뀑?섏뿀?듬땲??');
     } catch (err) {
       console.error(err);
-      setError('비고 초기값 불러오기에 실패했습니다.');
+      setError('鍮꾧퀬 珥덇린媛?遺덈윭?ㅺ린???ㅽ뙣?덉뒿?덈떎.');
     }
   };
 
-  // 비고 일괄 저장
+  // 鍮꾧퀬 ?쇨큵 ???
   const saveRemarksToServer = async () => {
     try {
       setError(null);
@@ -174,19 +174,19 @@ export default function Home() {
       const dataBs = await resBs.json();
       const dataWc = await resWc.json();
       if (!dataBs.success || !dataWc.success) {
-        setError('비고 저장에 실패했습니다.');
+        setError('鍮꾧퀬 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
         return;
       }
-      alert('저장되었습니다.');
+      alert('??λ릺?덉뒿?덈떎.');
     } catch (err) {
       console.error(err);
-      setError('비고 저장에 실패했습니다.');
+      setError('鍮꾧퀬 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
     }
   };
 
-  // 브랜드 목록
+  // 釉뚮옖??紐⑸줉
   const brands = [
-    { id: null, label: '법인' },
+    { id: null, label: '踰뺤씤' },
     { id: 'mlb', label: 'MLB' },
     { id: 'kids', label: 'KIDS' },
     { id: 'discovery', label: 'DISCOVERY' },
@@ -195,13 +195,16 @@ export default function Home() {
   ];
 
   const tabs = ['경영요약', '손익계산서', '재무상태표', '현금흐름표', '여신사용현황', '재고자산', 'PL(FY26 FCST)', 'CF'];
-  const tabGroups = [
-    { id: 'group1', label: '그룹1', tabIndexes: [0, 1, 2, 3] },
-    { id: 'group2', label: '그룹2', tabIndexes: [4, 5, 6, 7] },
-  ];
+  const tabGroups = useMemo(
+    () => [
+      { id: 'group1', label: '洹몃９1', tabIndexes: [0, 1, 2, 3] },
+      { id: 'group2', label: '洹몃９2', tabIndexes: [4, 5, 6, 7] },
+    ],
+    []
+  );
   const tabTypes: TabType[] = ['SUMMARY', 'PL', 'BS', 'CF', 'CREDIT', 'INVENTORY', 'PL', 'PL_CF'];
 
-  // 데이터 로딩
+  // ?곗씠??濡쒕뵫
   const loadData = async (type: TabType, year?: number, month?: number, brand?: string | null) => {
     setLoading(true);
     setError(null);
@@ -209,7 +212,7 @@ export default function Home() {
     try {
       let url = '';
       if (type === 'PL') {
-        // 브랜드별 또는 법인 PL
+        // 釉뚮옖?쒕퀎 ?먮뒗 踰뺤씤 PL
         if (brand) {
           url = `/api/fs/pl/brand?brand=${brand}&year=${year}`;
           if ((year === 2025 || year === 2026) && month !== undefined) {
@@ -233,7 +236,7 @@ export default function Home() {
 
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error('데이터를 불러올 수 없습니다.');
+        throw new Error('?곗씠?곕? 遺덈윭?????놁뒿?덈떎.');
       }
 
       const result = await response.json();
@@ -245,7 +248,7 @@ export default function Home() {
         setWorkingCapitalData(result.workingCapital || null);
         setWcRemarksAuto(result.wcRemarksAuto || null);
         
-        // 전년도 데이터 로드 (2025, 2026년일 경우)
+        // ?꾨뀈???곗씠??濡쒕뱶 (2025, 2026?꾩씪 寃쎌슦)
         if (year === 2025 || year === 2026) {
           const prevYear = year - 1;
           try {
@@ -255,7 +258,7 @@ export default function Home() {
               setPreviousBsData(prevResult.rows);
             }
           } catch (err) {
-            console.error('전년도 BS 데이터 로드 실패:', err);
+            console.error('?꾨뀈??BS ?곗씠??濡쒕뱶 ?ㅽ뙣:', err);
             setPreviousBsData(null);
           }
         } else {
@@ -268,25 +271,29 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
-      setError('데이터를 불러오는데 실패했습니다.');
+      setError('?곗씠?곕? 遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
     } finally {
       setLoading(false);
     }
   };
 
-  // 경영요약 데이터 로드 (저장된 KV 1순위 → fs/summary → localStorage → 파일)
+  // 寃쎌쁺?붿빟 ?곗씠??濡쒕뱶 (??λ맂 KV 1?쒖쐞 ??fs/summary ??localStorage ???뚯씪)
   const loadSummaryData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // 1순위: 저장된 경영요약 (GET /api/executive-summary) — 우측 5개 섹션이 있어야 사용
+      // 1?쒖쐞: ??λ맂 寃쎌쁺?붿빟 (GET /api/executive-summary) ???곗륫 5媛??뱀뀡???덉뼱???ъ슜
       try {
         const response = await fetch('/api/executive-summary');
         if (response.ok) {
           const result = await response.json();
           const d = result?.data;
-          const hasRightSections = d?.sections && Array.isArray(d.sections.주요성과) && Array.isArray(d.sections.결론);
+          const hasRightSections =
+            d?.sections &&
+            typeof d.sections === 'object' &&
+            Array.isArray((d.sections as Record<string, unknown>)['주요성과']) &&
+            Array.isArray((d.sections as Record<string, unknown>)['결론']);
           if (d?.title && hasRightSections) {
             setSummaryData(d);
             localStorage.setItem('executive-summary', JSON.stringify(d));
@@ -295,10 +302,10 @@ export default function Home() {
           }
         }
       } catch (apiErr) {
-        console.log('경영요약 저장 API 실패, 다음 소스 시도:', apiErr);
+        console.log('寃쎌쁺?붿빟 ???API ?ㅽ뙣, ?ㅼ쓬 ?뚯뒪 ?쒕룄:', apiErr);
       }
 
-      // 2순위: API에서 생성 (2026년 기말 기준)
+      // 2?쒖쐞: API?먯꽌 ?앹꽦 (2026??湲곕쭚 湲곗?)
       try {
         const response = await fetch('/api/fs/summary');
         if (response.ok) {
@@ -311,13 +318,13 @@ export default function Home() {
           }
         } else {
           const errBody = await response.json().catch(() => ({}));
-          console.error('경영요약 API 실패:', response.status, errBody);
+          console.error('寃쎌쁺?붿빟 API ?ㅽ뙣:', response.status, errBody);
         }
       } catch (apiErr) {
-        console.log('경영요약 API 실패, 캐시/파일에서 로드 시도:', apiErr);
+        console.log('寃쎌쁺?붿빟 API ?ㅽ뙣, 罹먯떆/?뚯씪?먯꽌 濡쒕뱶 ?쒕룄:', apiErr);
       }
 
-      // 3순위: localStorage에서 확인
+      // 3?쒖쐞: localStorage?먯꽌 ?뺤씤
       const savedData = localStorage.getItem('executive-summary');
       if (savedData) {
         try {
@@ -326,11 +333,11 @@ export default function Home() {
           setLoading(false);
           return;
         } catch (parseErr) {
-          console.error('localStorage 파싱 실패:', parseErr);
+          console.error('localStorage ?뚯떛 ?ㅽ뙣:', parseErr);
         }
       }
 
-      // 4순위: 프로젝트 기본 파일에서 불러오기
+      // 4?쒖쐞: ?꾨줈?앺듃 湲곕낯 ?뚯씪?먯꽌 遺덈윭?ㅺ린
       try {
         const fileResponse = await fetch('/data/executive-summary.json');
         if (fileResponse.ok) {
@@ -341,45 +348,45 @@ export default function Home() {
           return;
         }
       } catch (fileErr) {
-        console.log('프로젝트 기본 파일 없음.');
+        console.log('?꾨줈?앺듃 湲곕낯 ?뚯씪 ?놁쓬.');
       }
 
-      setError('경영요약 데이터를 불러올 수 없습니다.');
+      setError('寃쎌쁺?붿빟 ?곗씠?곕? 遺덈윭?????놁뒿?덈떎.');
     } catch (err) {
       console.error(err);
-      setError('경영요약 데이터를 불러오는데 실패했습니다.');
+      setError('寃쎌쁺?붿빟 ?곗씠?곕? 遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
     } finally {
       setLoading(false);
     }
   };
 
-  // 경영요약 초기값으로 리셋
+  // 寃쎌쁺?붿빟 珥덇린媛믪쑝濡?由ъ뀑
   const resetSummaryData = async () => {
     try {
-      // localStorage 초기화
+      // localStorage 珥덇린??
       localStorage.removeItem('executive-summary');
       
-      // API에서 새로 불러오기
+      // API?먯꽌 ?덈줈 遺덈윭?ㅺ린
       setSummaryData(null);
       setLoading(true);
       const response = await fetch('/api/fs/summary');
       if (!response.ok) {
-        throw new Error('경영요약 데이터를 불러올 수 없습니다.');
+        throw new Error('寃쎌쁺?붿빟 ?곗씠?곕? 遺덈윭?????놁뒿?덈떎.');
       }
       const result = await response.json();
       setSummaryData(result);
-      // localStorage에도 저장
+      // localStorage?먮룄 ???
       localStorage.setItem('executive-summary', JSON.stringify(result));
-      alert('초기값으로 리셋되었습니다.');
+      alert('珥덇린媛믪쑝濡?由ъ뀑?섏뿀?듬땲??');
     } catch (err) {
       console.error(err);
-      setError('초기값 불러오기에 실패했습니다.');
+      setError('珥덇린媛?遺덈윭?ㅺ린???ㅽ뙣?덉뒿?덈떎.');
     } finally {
       setLoading(false);
     }
   };
 
-  // 탭 변경 시 데이터 로드
+  // ??蹂寃????곗씠??濡쒕뱶
   useEffect(() => {
     const currentType = tabTypes[activeTab];
     
@@ -408,7 +415,7 @@ export default function Home() {
     }
   }, [activeTab]);
 
-  // 연도 변경 시 데이터 리로드
+  // ?곕룄 蹂寃????곗씠??由щ줈??
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL') {
       if (plBrand === null) {
@@ -469,7 +476,7 @@ export default function Home() {
     }
   }, [cfYear, activeTab]);
 
-  // 기준월 변경 시 데이터 리로드 (PL 2025·2026년)
+  // 湲곗???蹂寃????곗씠??由щ줈??(PL 2025쨌2026??
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL' && (plYear === 2025 || plYear === 2026)) {
       if (plBrand === null) {
@@ -480,11 +487,11 @@ export default function Home() {
     }
   }, [baseMonth]);
 
-  // 브랜드 변경 시 데이터 리로드
+  // 釉뚮옖??蹂寃????곗씠??由щ줈??
   useEffect(() => {
     if (tabTypes[activeTab] === 'PL') {
       if (plBrand === null) {
-        // 법인 선택 시 항상 브랜드별 손익 데이터 로드
+        // 踰뺤씤 ?좏깮 ????긽 釉뚮옖?쒕퀎 ?먯씡 ?곗씠??濡쒕뱶
         loadBrandBreakdownData();
       } else {
         loadData('PL', plYear, baseMonth, plBrand);
@@ -492,7 +499,7 @@ export default function Home() {
     }
   }, [plBrand]);
 
-  // 브랜드별 손익 보기 데이터 로드
+  // 釉뚮옖?쒕퀎 ?먯씡 蹂닿린 ?곗씠??濡쒕뱶
   const loadBrandBreakdownData = async () => {
     setLoading(true);
     setError(null);
@@ -505,8 +512,8 @@ export default function Home() {
 
       const response = await fetch(url);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: '데이터를 불러올 수 없습니다.' }));
-        throw new Error(errorData.error || '데이터를 불러올 수 없습니다.');
+        const errorData = await response.json().catch(() => ({ error: '?곗씠?곕? 遺덈윭?????놁뒿?덈떎.' }));
+        throw new Error(errorData.error || '?곗씠?곕? 遺덈윭?????놁뒿?덈떎.');
       }
 
       const result = await response.json();
@@ -516,24 +523,24 @@ export default function Home() {
       setPlData(result.rows);
     } catch (err) {
       console.error(err);
-      const errorMessage = err instanceof Error ? err.message : '브랜드별 손익 데이터를 불러오는데 실패했습니다.';
+      const errorMessage = err instanceof Error ? err.message : '釉뚮옖?쒕퀎 ?먯씡 ?곗씠?곕? 遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.';
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // 월 컬럼 (1월~12월)
+  // ??而щ읆 (1??12??
   const monthColumns = ['계정과목', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 
   return (
     <main className="min-h-screen bg-gray-50">
-      {/* 상단 탭 */}
+      {/* ?곷떒 ??*/}
       <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} groups={tabGroups} />
 
-      {/* 내용 - 상단 탭 높이만큼 패딩 추가 */}
+      {/* ?댁슜 - ?곷떒 ???믪씠留뚰겮 ?⑤뵫 異붽? */}
       <div className="p-0 pt-16">
-        {/* 경영요약 */}
+        {/* 寃쎌쁺?붿빟 */}
         {activeTab === 0 && (
           <ExecutiveSummary 
             data={summaryData}
@@ -552,7 +559,7 @@ export default function Home() {
           />
         )}
 
-        {/* PL - 손익계산서 */}
+        {/* PL - ?먯씡怨꾩궛??*/}
         {activeTab === 1 && (
           <div>
             <div className="sticky top-16 z-30 bg-gray-100 border-b border-gray-300">
@@ -565,7 +572,7 @@ export default function Home() {
                 <BrandTabs brands={brands} activeBrand={plBrand} onChange={setPlBrand} />
               </div>
             </div>
-            {loading && <div className="p-6 text-center">로딩 중...</div>}
+            {loading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {plData && !loading && (
               <div className="p-6">
@@ -584,7 +591,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* BS - 재무상태표 */}
+        {/* BS - ?щТ?곹깭??*/}
         {activeTab === 2 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300">
@@ -597,24 +604,24 @@ export default function Home() {
                       onClick={saveRemarksToServer}
                       className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm"
                     >
-                      저장하기
+                      ??ν븯湲?
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        if (confirm('비고를 초기값으로 되돌리시겠습니까?')) {
+                        if (confirm('鍮꾧퀬瑜?珥덇린媛믪쑝濡??섎룎由ъ떆寃좎뒿?덇퉴?')) {
                           resetRemarksData();
                         }
                       }}
                       className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-600 text-white hover:bg-gray-700 transition-colors shadow-sm"
                     >
-                      초기값으로
+                      珥덇린媛믪쑝濡?
                     </button>
                   </div>
                 )}
               </div>
             </div>
-            {loading && <div className="p-6 text-center">로딩 중...</div>}
+            {loading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {bsData && !loading && (
               <>
@@ -639,11 +646,11 @@ export default function Home() {
                   />
                 </div>
                 
-                {/* 운전자본 표 */}
+                {/* ?댁쟾?먮낯 ??*/}
                 {workingCapitalData && (
                   <div className="px-6 pb-6">
                     <div className="mb-4 border-t-2 border-gray-400 pt-6">
-                      <h2 className="text-lg font-bold text-gray-800 mb-4">운전자본 분석</h2>
+                      <h2 className="text-lg font-bold text-gray-800 mb-4">?댁쟾?먮낯 遺꾩꽍</h2>
                     </div>
                     <FinancialTable 
                       data={workingCapitalData} 
@@ -667,7 +674,7 @@ export default function Home() {
                   </div>
                 )}
                 
-                {/* 재무분석 (2025년, 2026년만) */}
+                {/* ?щТ遺꾩꽍 (2025?? 2026?꾨쭔) */}
                 {workingCapitalData && bsData && (bsYear === 2025 || bsYear === 2026) && (
                   <BSAnalysis 
                     bsData={bsData}
@@ -680,7 +687,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* CF - 현금흐름표 */}
+        {/* CF - ?꾧툑?먮쫫??*/}
         {activeTab === 3 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300">
@@ -690,11 +697,11 @@ export default function Home() {
                   onClick={() => setCfMonthsCollapsed(!cfMonthsCollapsed)}
                   className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors shadow-sm"
                 >
-                  {cfMonthsCollapsed ? '월별 데이터 펼치기 ▶' : '월별 데이터 접기 ◀'}
+                  {cfMonthsCollapsed ? '월별 데이터 펼치기 ▼' : '월별 데이터 접기 ▲'}
                 </button>
               </div>
             </div>
-            {cfHierarchyLoading && <div className="p-6 text-center">로딩 중...</div>}
+            {cfHierarchyLoading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {cfHierarchyData && cfHierarchyData.rows.length > 0 && !cfHierarchyLoading && (
               cfMonthsCollapsed ? (
@@ -767,13 +774,13 @@ export default function Home() {
           </div>
         )}
 
-        {/* 여신사용현황 */}
+        {/* ?ъ떊?ъ슜?꾪솴 */}
         {activeTab === 4 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3">
-              <span className="text-sm font-medium text-gray-700">2026년 2월말 기준</span>
+              <span className="text-sm font-medium text-gray-700">2026??2?붾쭚 湲곗?</span>
             </div>
-            {loading && <div className="p-6 text-center">로딩 중...</div>}
+            {loading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {creditData && !loading && (
               <div className="p-6">
@@ -783,7 +790,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 재고자산 */}
+        {/* ?ш퀬?먯궛 */}
         {inventoryTabMounted && <div className={activeTab === 5 ? '' : 'hidden'}><InventoryDashboard /></div>}
         {activeTab === 6 && <PLForecastTab />}
         {activeTab === 7 && <PLCashFlowTab />}
@@ -791,4 +798,5 @@ export default function Home() {
     </main>
   );
 }
+
 
