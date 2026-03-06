@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
@@ -36,6 +36,7 @@ interface SalesRowDef {
 }
 
 const SALES_BRANDS: SalesBrand[] = ['MLB', 'MLB KIDS', 'DISCOVERY'];
+const FIXED_COST_ACCOUNTS = new Set(['기타(직접비)', '대리상지원금', '감가상각비']);
 const FORECAST_TO_SALES_BRAND: Record<ForecastLeafBrand, SalesBrand> = {
   mlb: 'MLB',
   kids: 'MLB KIDS',
@@ -1301,9 +1302,12 @@ export default function PLForecastTab() {
 
             const sales = salesSeries[i] ?? null;
             const ratio = ratioSeries[i] ?? null;
-            if (sales === null || ratio === null) continue;
+            if (ratio === null) continue;
+            if (!FIXED_COST_ACCOUNTS.has(account) && sales === null) continue;
 
-            const forecastValue = sales * ratio;
+            const forecastValue = FIXED_COST_ACCOUNTS.has(account)
+              ? ratio
+              : sales! * ratio;
             if ((merged[i] ?? null) !== forecastValue) {
               merged[i] = forecastValue;
               localChanged = true;
@@ -1391,6 +1395,11 @@ export default function PLForecastTab() {
   const formatPercent3 = (value: number | null): string => {
     if (value === null || Number.isNaN(value)) return '';
     return `${(value * 100).toFixed(3)}%`;
+  };
+
+  const formatKAmount = (value: number | null): string => {
+    if (value === null || !Number.isFinite(value)) return '-';
+    return Math.round(value).toLocaleString();
   };
 
   const isLoadingAny =
@@ -1888,6 +1897,9 @@ export default function PLForecastTab() {
                           <th className="min-w-[180px] border-b border-r border-slate-300 bg-slate-800 px-3 py-2 text-center font-semibold text-slate-100">
                             구분
                           </th>
+                          <th className="min-w-[100px] border-b border-r border-slate-300 bg-slate-800 px-3 py-2 text-center font-semibold text-slate-100">
+                            고정/변동 구분
+                          </th>
                           {MONTH_HEADERS.map((month) => (
                             <th
                               key={`direct-expense-ratio-${month}`}
@@ -1903,6 +1915,7 @@ export default function PLForecastTab() {
                           <Fragment key={`direct-expense-ratio-group-${brand}`}>
                             <tr key={`direct-expense-ratio-brand-${brand}`} className="bg-slate-100">
                               <td className="border-b border-r border-slate-200 px-3 py-2 font-semibold text-slate-800">{brand}</td>
+                              <td className="border-b border-r border-slate-200 px-3 py-2" />
                               {MONTH_HEADERS.map((_, monthIndex) => (
                                 <td
                                   key={`direct-expense-ratio-brand-${brand}-${monthIndex}`}
@@ -1918,6 +1931,9 @@ export default function PLForecastTab() {
                                   className={accountIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}
                                 >
                                   <td className="border-b border-r border-slate-200 px-3 py-2 pl-7 text-slate-700">{account}</td>
+                                  <td className="border-b border-r border-slate-200 px-3 py-2 text-center text-slate-600">
+                                    {FIXED_COST_ACCOUNTS.has(account) ? '고정비' : '변동비'}
+                                  </td>
                                   {MONTH_HEADERS.map((_, monthIndex) => {
                                     const hiddenByActual = monthIndex + 1 <= latestActualMonth;
                                     const value = hiddenByActual ? null : (series[monthIndex] ?? null);
@@ -1926,7 +1942,7 @@ export default function PLForecastTab() {
                                         key={`direct-expense-ratio-${brand}-${account}-${monthIndex}`}
                                         className="border-b border-r border-slate-200 px-3 py-2 text-right text-slate-700 last:border-r-0"
                                       >
-                                        {formatPercent3(value)}
+                                        {FIXED_COST_ACCOUNTS.has(account) ? formatKAmount(value) : formatPercent3(value)}
                                       </td>
                                     );
                                   })}

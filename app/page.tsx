@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import Tabs from '@/components/Tabs';
@@ -572,7 +572,7 @@ export default function Home() {
                 <BrandTabs brands={brands} activeBrand={plBrand} onChange={setPlBrand} />
               </div>
             </div>
-            {loading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
+            {loading && <div className="p-6 text-center">로딩 중...</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {plData && !loading && (
               <div className="p-6">
@@ -621,7 +621,7 @@ export default function Home() {
                 )}
               </div>
             </div>
-            {loading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
+            {loading && <div className="p-6 text-center">로딩 중...</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {bsData && !loading && (
               <>
@@ -701,7 +701,7 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            {cfHierarchyLoading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
+            {cfHierarchyLoading && <div className="p-6 text-center">로딩 중...</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {cfHierarchyData && cfHierarchyData.rows.length > 0 && !cfHierarchyLoading && (
               cfMonthsCollapsed ? (
@@ -778,9 +778,9 @@ export default function Home() {
         {activeTab === 4 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3">
-              <span className="text-sm font-medium text-gray-700">2026??2?붾쭚 湲곗?</span>
+              <span className="text-sm font-medium text-gray-700">2026년 2월 기준</span>
             </div>
-            {loading && <div className="p-6 text-center">濡쒕뵫 以?..</div>}
+            {loading && <div className="p-6 text-center">로딩 중...</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}
             {creditData && !loading && (
               <div className="p-6">

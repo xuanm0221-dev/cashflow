@@ -2706,7 +2706,7 @@ export default function InventoryDashboard() {
           <div className="mt-8" style={{ paddingLeft: '1.5%', paddingRight: '1.5%' }}>
             <div className="grid gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
               <div className="min-w-0 max-w-[560px]">
-                <div className="mb-3 border-l-4 border-sky-500 pl-3 text-sm font-bold text-slate-900">리케일 매출(변수)</div>
+                <div className="mb-3 border-l-4 border-sky-500 pl-3 text-sm font-bold text-slate-900">리테일 매출(변수)</div>
                 <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-inner">
                   <table key={`independent-driver-${INDEPENDENT_DRIVER_COLUMN_HEADERS.join('|')}`} className="min-w-full border-collapse text-xs">
                     <thead>

@@ -7,9 +7,8 @@ import { formatNumber, getRecoveryMonthLabelsAsN월 } from '@/lib/utils';
 const RECOVERY_PLAN_FALLBACK = '여신회수 계획: (데이터 없음)';
 
 function formatRecoveryValueM(value: number): string {
-  const abs = Math.abs(value);
-  const m = Math.round(abs / 1_000_000);
-  return value < 0 ? `△${m}M` : `${m}M`;
+  const m = Math.round(value / -1_000_000);
+  return `${m}M`;
 }
 
 function formatCreditRecoveryToLine(d: CreditRecoveryData): string {
@@ -25,98 +24,28 @@ interface CreditStatusProps {
 
 export default function CreditStatus({ data, creditRecoveryData = null }: CreditStatusProps) {
   const [collapsed, setCollapsed] = useState<boolean>(false);
-  const [wuhanMemo, setWuhanMemo] = useState<string>('');
-  const [editingWuhan, setEditingWuhan] = useState<boolean>(false);
-  const [recoveryPlan, setRecoveryPlan] = useState<string>(RECOVERY_PLAN_FALLBACK);
-  const [editingRecovery, setEditingRecovery] = useState<boolean>(false);
   const [othersCollapsed, setOthersCollapsed] = useState<boolean>(true);
-  const recoveryPlanFromRemarksRef = useRef<string | undefined>(undefined);
-  const recoverySelfFetchedRef = useRef(false);
-  const [remarksLoaded, setRemarksLoaded] = useState(false);
+  const [csvRecoveryData, setCsvRecoveryData] = useState<CreditRecoveryData | null>(null);
+  const selfFetchedRef = useRef(false);
 
-  // 비고 데이터 로드 (remarks에 recoveryPlan 있으면 우선 사용, 없거나 실패 시 API 데이터 사용)
+  // CSV에서 회수계획 로드 (prop 없을 때만 직접 fetch)
   useEffect(() => {
-    const loadCreditRemarks = async () => {
-      try {
-        const response = await fetch('/api/remarks?type=credit');
-        if (response.ok) {
-          const res = await response.json();
-          if (res.remarks) {
-            if (res.remarks.wuhanMemo) setWuhanMemo(res.remarks.wuhanMemo);
-            const fromRemarks = res.remarks.recoveryPlan ?? '';
-            recoveryPlanFromRemarksRef.current = fromRemarks;
-            setRecoveryPlan(typeof res.remarks.recoveryPlan === 'string' ? res.remarks.recoveryPlan : RECOVERY_PLAN_FALLBACK);
-          } else {
-            recoveryPlanFromRemarksRef.current = '';
-          }
-        } else {
-          recoveryPlanFromRemarksRef.current = '';
-        }
-      } catch (error) {
-        console.error('여신 비고 로드 실패:', error);
-        recoveryPlanFromRemarksRef.current = '';
-      } finally {
-        setRemarksLoaded(true);
-      }
-    };
-
-    loadCreditRemarks();
-  }, []);
-
-  // remarks에 recoveryPlan 없을 때만 creditRecoveryData(CSV/현금흐름표 동일 소스)로 자동 표시
-  useEffect(() => {
-    if (!remarksLoaded) return;
-    if (recoveryPlanFromRemarksRef.current !== '') return;
-    if (creditRecoveryData) {
-      setRecoveryPlan(formatCreditRecoveryToLine(creditRecoveryData));
-      return;
-    }
-    // 상위에서 데이터가 아직 안 왔을 때만 한 번 직접 로드 (중복 요청 방지)
-    if (recoverySelfFetchedRef.current) return;
-    recoverySelfFetchedRef.current = true;
-    const baseYearMonth = '26.02';
-    fetch(`/api/annual-plan/credit-recovery?baseYearMonth=${baseYearMonth}`)
+    if (creditRecoveryData) return;
+    if (selfFetchedRef.current) return;
+    selfFetchedRef.current = true;
+    fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.02')
       .then((r) => (r.ok ? r.json() : null))
       .then((res: { data?: CreditRecoveryData } | null) => {
-        if (res?.data) setRecoveryPlan(formatCreditRecoveryToLine(res.data));
+        if (res?.data) setCsvRecoveryData(res.data);
       })
       .catch(() => {});
-  }, [creditRecoveryData, remarksLoaded]);
+  }, [creditRecoveryData]);
 
-  // 비고 저장 함수 (디바운스)
-  const saveCreditRemarkDebounced = useMemo(() => {
-    const timeouts: { [key: string]: NodeJS.Timeout } = {};
-    
-    return async (key: 'wuhanMemo' | 'recoveryPlan', value: string) => {
-      if (timeouts[key]) {
-        clearTimeout(timeouts[key]);
-      }
-      
-      timeouts[key] = setTimeout(async () => {
-        try {
-          const response = await fetch('/api/remarks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              account: key, 
-              remark: value, 
-              type: 'credit' 
-            })
-          });
-          
-          const data = await response.json();
-          
-          if (!data.success) {
-            console.error('여신 비고 저장 실패:', data.error || 'Unknown error');
-          } else {
-            console.log('여신 비고 저장 성공:', key);
-          }
-        } catch (error) {
-          console.error('여신 비고 저장 실패:', error);
-        }
-      }, 1000); // 1초 디바운스
-    };
-  }, []);
+  const recoveryText = useMemo(() => {
+    const d = creditRecoveryData ?? csvRecoveryData;
+    if (!d) return RECOVERY_PLAN_FALLBACK;
+    return formatCreditRecoveryToLine(d);
+  }, [creditRecoveryData, csvRecoveryData]);
 
   return (
     <div className="space-y-6">
@@ -224,36 +153,10 @@ export default function CreditStatus({ data, creditRecoveryData = null }: Credit
               </td>
             </tr>
 
-            {/* 2. 여신회수계획 행 (편집 가능, 노란색) */}
+            {/* 2. 여신회수계획 행 */}
             <tr className="bg-yellow-50">
-              <td 
-                colSpan={5} 
-                className="border border-gray-300 py-3 px-4 text-sm"
-              >
-                {editingRecovery ? (
-                  <input
-                    type="text"
-                    value={recoveryPlan}
-                    onChange={(e) => {
-                      setRecoveryPlan(e.target.value);
-                      saveCreditRemarkDebounced('recoveryPlan', e.target.value);
-                    }}
-                    onBlur={() => setEditingRecovery(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') setEditingRecovery(false);
-                    }}
-                    className="w-full px-2 py-1 border border-yellow-400 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-yellow-50"
-                    autoFocus
-                  />
-                ) : (
-                  <span
-                    onClick={() => setEditingRecovery(true)}
-                    className="cursor-pointer hover:bg-yellow-100 px-2 py-1 rounded inline-block"
-                    title="클릭하여 편집"
-                  >
-                    {recoveryPlan}
-                  </span>
-                )}
+              <td colSpan={5} className="border border-gray-300 py-3 px-4 text-sm">
+                <span className="px-2 py-1 inline-block">{recoveryText}</span>
               </td>
             </tr>
 
