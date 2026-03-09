@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { CFExplanationContent } from '@/app/api/cf-explanation/route';
+import type { CFExplanationNumbers } from '@/lib/cf-explanation-data';
+import { generateCFExplanationContent } from '@/lib/cf-explanation-generator';
 
 interface CFExplanationPanelProps {
   year?: number;
+  rollingNumbers?: CFExplanationNumbers;
 }
 
 const SECTION_KEYS: (keyof CFExplanationContent)[] = [
@@ -21,8 +24,9 @@ const SECTION_LABELS: Record<keyof CFExplanationContent, { title: string; border
   managementPoints: { title: '관리 포인트', border: 'border-orange-500', titleClass: 'text-orange-900' },
 };
 
-export default function CFExplanationPanel({ year = 2026 }: CFExplanationPanelProps) {
-  const [content, setContent] = useState<CFExplanationContent | null>(null);
+export default function CFExplanationPanel({ year = 2026, rollingNumbers }: CFExplanationPanelProps) {
+  // KV에 저장된 사용자 편집 내용 (없으면 null)
+  const [kvContent, setKvContent] = useState<CFExplanationContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [requirePassword, setRequirePassword] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -33,30 +37,39 @@ export default function CFExplanationPanel({ year = 2026 }: CFExplanationPanelPr
   const [saving, setSaving] = useState(false);
   const passwordRef = useRef<string>('');
 
-  const loadContent = (refreshFromData = false) => {
+  // Rolling 데이터로 자동 생성된 내용 (props 변경시 자동 업데이트)
+  const rollingContent = useMemo(
+    () => (rollingNumbers ? generateCFExplanationContent(rollingNumbers) : null),
+    [rollingNumbers],
+  );
+
+  // 최종 표시 내용: KV 사용자 편집 우선, 없으면 Rolling 자동 생성
+  const content = kvContent ?? rollingContent;
+
+  const loadKvContent = () => {
     setLoading(true);
     setLoadError(null);
-    const url = refreshFromData ? '/api/cf-explanation?refresh=1' : '/api/cf-explanation';
-    fetch(url)
+    fetch('/api/cf-explanation')
       .then((res) => res.json())
       .then((data) => {
         setRequirePassword(!!data.requirePassword);
         if (data.error || data.content == null) {
-          setContent(null);
-          setLoadError(data.error || '데이터를 불러올 수 없습니다.');
+          setKvContent(null);
+          if (!rollingContent) setLoadError(data.error || '데이터를 불러올 수 없습니다.');
+          else setLoadError(null);
         } else {
-          setContent(data.content);
+          setKvContent(data.content);
           setLoadError(null);
         }
       })
       .catch(() => {
-        setContent(null);
-        setLoadError('데이터를 불러올 수 없습니다.');
+        setKvContent(null);
+        if (!rollingContent) setLoadError('데이터를 불러올 수 없습니다.');
+        else setLoadError(null);
       })
       .finally(() => setLoading(false));
   };
 
-  // 로컬: API가 항상 생성. 배포: KV 있으면 KV, 없으면 생성.
   useEffect(() => {
     let cancelled = false;
     fetch('/api/cf-explanation')
@@ -65,18 +78,14 @@ export default function CFExplanationPanel({ year = 2026 }: CFExplanationPanelPr
         if (cancelled) return;
         setRequirePassword(!!data.requirePassword);
         if (data.error || data.content == null) {
-          setContent(null);
-          setLoadError(data.error || '데이터를 불러올 수 없습니다.');
+          setKvContent(null);
         } else {
-          setContent(data.content);
+          setKvContent(data.content);
           setLoadError(null);
         }
       })
       .catch(() => {
-        if (!cancelled) {
-          setContent(null);
-          setLoadError('데이터를 불러올 수 없습니다.');
-        }
+        if (!cancelled) setKvContent(null);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -123,7 +132,7 @@ export default function CFExplanationPanel({ year = 2026 }: CFExplanationPanelPr
     })
       .then((res) => {
         if (res.ok) {
-          setContent(editContent);
+          setKvContent(editContent);
           setEditMode(false);
           setEditContent(null);
           setPasswordInput('');
@@ -150,7 +159,7 @@ export default function CFExplanationPanel({ year = 2026 }: CFExplanationPanelPr
     if (editContent) setEditContent({ ...editContent, [key]: lines });
   };
 
-  if (loading) {
+  if (loading && !content) {
     return (
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="text-gray-500 text-sm">로딩 중...</div>
@@ -165,7 +174,7 @@ export default function CFExplanationPanel({ year = 2026 }: CFExplanationPanelPr
         <div className="text-red-600 text-sm mb-2">{loadError || '내용을 불러올 수 없습니다.'}</div>
         <button
           type="button"
-          onClick={() => loadContent(true)}
+          onClick={loadKvContent}
           className="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
         >
           초기값 불러오기
@@ -189,16 +198,30 @@ export default function CFExplanationPanel({ year = 2026 }: CFExplanationPanelPr
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => loadContent(true)}
+              onClick={() => {
+                if (rollingNumbers) {
+                  // Rolling 데이터로 초기값 복원 (KV 해제)
+                  setKvContent(null);
+                } else {
+                  // Rolling 데이터 없을 때 서버에서 재생성
+                  setLoading(true);
+                  fetch('/api/cf-explanation?refresh=1')
+                    .then((res) => res.json())
+                    .then((data) => {
+                      if (data.content) setKvContent(data.content);
+                    })
+                    .finally(() => setLoading(false));
+                }
+              }}
               disabled={loading}
               className="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 disabled:opacity-50"
-              title="데이터로 생성한 배포 기준 내용으로 되돌리기"
+              title="Rolling 데이터 기준 자동 생성 내용으로 되돌리기"
             >
               초기값
             </button>
             <button
               type="button"
-              onClick={() => loadContent(false)}
+              onClick={loadKvContent}
               disabled={loading}
               className="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 disabled:opacity-50"
               title="KV에 저장된 내용 불러오기"
