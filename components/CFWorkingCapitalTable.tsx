@@ -267,7 +267,7 @@ export default function CFWorkingCapitalTable({
 
   return (
     <div className="mt-8">
-      <h3 className="text-base font-semibold text-gray-800 mb-2">운전자본표</h3>
+      <h3 className="text-base font-semibold text-gray-800 mb-2">운전자본표 (본사 선급금 제외)</h3>
       <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
         <table className="w-full border-collapse text-sm">
           <thead className="bg-navy text-white">

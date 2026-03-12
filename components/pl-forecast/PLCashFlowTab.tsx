@@ -105,8 +105,8 @@ const STATIC_CASH_BORROWING = {
 };
 
 const STATIC_WORKING_CAPITAL_ROWS: StaticWorkingCapitalRow[] = [
-  { key: 'wc_total', label: '운전자본 합계', level: 0, isGroup: false, actual2025: 1819059000 },
-  { key: 'wc_mom', label: '전월대비', level: 0, isGroup: false, actual2025: 485491000 },
+  { key: 'wc_total', label: '운전자본 합계', level: 0, isGroup: false, actual2025: 0 },
+  { key: 'wc_mom', label: '전년대비', level: 0, isGroup: false, actual2025: 605491000 },
   { key: 'wc_ar', label: '매출채권', level: 1, isGroup: true, actual2025: 725184000 },
   { key: 'wc_ar_direct', label: '직영AR', level: 2, isGroup: false, actual2025: 52193080 },
   { key: 'wc_ar_dealer', label: '대리상AR', level: 2, isGroup: false, actual2025: 672991268 },
@@ -118,6 +118,13 @@ const STATIC_WORKING_CAPITAL_ROWS: StaticWorkingCapitalRow[] = [
   { key: 'wc_ap_hq', label: '본사 AP', level: 2, isGroup: false, actual2025: -732511214 },
   { key: 'wc_ap_goods', label: '상품 AP', level: 2, isGroup: false, actual2025: -21410471 },
 ];
+
+const WC_TOTAL_ACTUAL2025 = (() => {
+  const ar = STATIC_WORKING_CAPITAL_ROWS.find((r) => r.key === 'wc_ar')?.actual2025 ?? 0;
+  const inv = STATIC_WORKING_CAPITAL_ROWS.find((r) => r.key === 'wc_inventory')?.actual2025 ?? 0;
+  const ap = STATIC_WORKING_CAPITAL_ROWS.find((r) => r.key === 'wc_ap')?.actual2025 ?? 0;
+  return ar + inv + ap;
+})();
 
 const TAG_COST_RATIO_BRANDS = ['MLB', 'MLB KIDS', 'DISCOVERY'] as const;
 const PL_CF_MONTH_LABELS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'] as const;
@@ -700,7 +707,8 @@ export default function PLCashFlowTab() {
         result.push(row);
         continue;
       }
-      result.push(row);
+      const resolved = row.key === 'wc_total' ? { ...row, actual2025: WC_TOTAL_ACTUAL2025 } : row;
+      result.push(resolved);
     }
 
     return result;
@@ -945,6 +953,7 @@ export default function PLCashFlowTab() {
   };
 
   const wcPlanVsPrev = (row: StaticWorkingCapitalRow): number | null => {
+    if (row.key === 'wc_mom') return null;
     const planK = wcPlanK(row.key);
     const prevK = toDisplayK(row.actual2025);
     if (planK == null || prevK == null) return null;
@@ -1047,7 +1056,7 @@ export default function PLCashFlowTab() {
     }
     if (rowKey === 'wc_mom') {
       const currentTotal = arDirect + arDealer + inventoryMlb + inventoryKids + inventoryDiscovery + apHq + apGoods;
-      const baseActual = STATIC_WORKING_CAPITAL_ROWS.find((row) => row.key === 'wc_total')?.actual2025 ?? null;
+      const baseActual = WC_TOTAL_ACTUAL2025;
       const baseActualK = toDisplayK(baseActual);
       if (baseActualK == null) return null;
       return currentTotal - baseActualK;
@@ -1145,7 +1154,7 @@ export default function PLCashFlowTab() {
     if (rowKey === 'wc_mom') {
       if (grandTotal == null) return null;
       if (monthIndex === 0) {
-        const baseActual = STATIC_WORKING_CAPITAL_ROWS.find((row) => row.key === 'wc_total')?.actual2025 ?? null;
+        const baseActual = WC_TOTAL_ACTUAL2025;
         const baseActualK = toDisplayK(baseActual);
         if (baseActualK == null) return null;
         return grandTotal - baseActualK;
@@ -1159,7 +1168,7 @@ export default function PLCashFlowTab() {
 
   const cfExplanationNumbers = useMemo<CFExplanationNumbers>(() => {
     const staticCfRow = (key: string) => STATIC_CF_ROWS.find((r) => r.key === key)?.actual2025 ?? 0;
-    const staticWcRowRaw = (key: string) => STATIC_WORKING_CAPITAL_ROWS.find((r) => r.key === key)?.actual2025 ?? 0;
+    const staticWcRowRaw = (key: string) => key === 'wc_total' ? WC_TOTAL_ACTUAL2025 : (STATIC_WORKING_CAPITAL_ROWS.find((r) => r.key === key)?.actual2025 ?? 0);
     const wcK = (key: string) => workingCapital2026(key) ?? 0;
     const wcYoyK = (key: string) => {
       const curr = workingCapital2026(key);
@@ -1240,7 +1249,7 @@ export default function PLCashFlowTab() {
           </button>
           <span className={`px-3 py-1 text-xs font-medium rounded-full ${loadStatusClassName}`}>{loadStatusLabel}</span>
           <span className="font-bold text-red-600" style={{ fontSize: '1.125rem' }}>
-            ※ 성장률 변경 시 재고자산탭 방문 후 CF를 새로고침하세요
+            ※ 필수 방문순서: 재고자산(simu) → PL(simu) 순차적으로 방문후 데이터 참고해주세요
           </span>
         </div>
       </div>
@@ -1494,7 +1503,7 @@ export default function PLCashFlowTab() {
                           );
                         })}
                         <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg}`}>{formatKValue(workingCapital2026(row.key))}</td>
-                        <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg} ${(workingCapitalYoy(row) ?? 0) < 0 ? 'text-red-500' : ''}`}>{formatDiffK(workingCapitalYoy(row))}</td>
+                        <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg} ${(workingCapitalYoy(row) ?? 0) < 0 ? 'text-red-500' : ''}`}>{isMonthDiff ? '-' : formatDiffK(workingCapitalYoy(row))}</td>
                         <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg} ${(wcPlanVsRollingAmount(row.key) ?? 0) < 0 ? 'text-red-500' : ''}`}>{formatDiffK(wcPlanVsRollingAmount(row.key))}</td>
                         <td className={`border border-gray-300 py-2 px-4 text-right ${cellBg}`}>{wcPlanVsRollingPct(row.key)}</td>
                       </tr>
