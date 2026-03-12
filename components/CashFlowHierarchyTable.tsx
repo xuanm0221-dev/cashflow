@@ -270,7 +270,7 @@ export default function CashFlowHierarchyTable({
                               {formatCell(row.values[14], 14)}
                             </td>,
                           ]
-                    : row.values.slice(0, hasPlanCols ? 19 : undefined).map((v, vi) => (
+                    : row.values.slice(0, 15).map((v, vi) => (
                         <td key={vi} className={cellClass(v)}>
                           {formatCell(v, vi)}
                         </td>

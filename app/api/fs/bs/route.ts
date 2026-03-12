@@ -204,13 +204,14 @@ export async function GET(request: NextRequest) {
         const aggMonth = new Map<string, number>();
         const aggAnnual = new Map<string, number>();
 
-        for (const row of [...planBSRows, ...planWCRows]) {
-          if (!aggMonth.has(row.account)) {
-            aggMonth.set(row.account, row.values[pm - 1] ?? 0);
-          }
-          if (!aggAnnual.has(row.account)) {
-            aggAnnual.set(row.account, row.values[11] ?? 0);
-          }
+        for (const row of planBSRows) {
+          aggMonth.set(row.account, row.values[pm - 1] ?? 0);
+          aggAnnual.set(row.account, row.values[11] ?? 0);
+        }
+        // WC 계정은 부호가 반전되므로 BS값을 덮어씀
+        for (const row of planWCRows) {
+          aggMonth.set(row.account, row.values[pm - 1] ?? 0);
+          aggAnnual.set(row.account, row.values[11] ?? 0);
         }
 
         aggregatedPlanData = {

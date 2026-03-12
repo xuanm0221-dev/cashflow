@@ -16,6 +16,7 @@ const WC_ACCOUNTS = [
   '외상매입금',
   '본사AP',
   '제품AP',
+  '미착품',
 ] as const;
 
 interface CFWorkingCapitalTableProps {
@@ -73,8 +74,39 @@ export default function CFWorkingCapitalTable({
     ];
   };
 
-  const 운전자본Values = useMemo(() => buildRowValues(getRow('운전자본')), [filtered, getRow]);
-  const year2024Value = getRow('운전자본')?.year2024Value ?? null; // 2024년(기말) — 2025년(기말) 전월대비용
+  // CF 운전자본 합계: 표에 표시된 3개 행(매출채권+재고자산+매입채무)을 직접 합산
+  const computedWC = useMemo(() => {
+    const r1 = getRow('외상매출금');
+    const r2 = getRow('재고자산');
+    const r3 = getRow('외상매입금');
+    const rows3 = [r1, r2, r3];
+
+    const sumVals = Array.from({ length: 12 }, (_, i) =>
+      rows3.reduce((acc, r) => acc + (r?.values?.[i] ?? 0), 0)
+    );
+
+    const sumComp = (fn: (r: TableRow) => number | null): number | null => {
+      const vals = rows3.map(r => (r ? fn(r) : null));
+      if (vals.every(v => v === null)) return null;
+      return vals.reduce<number>((a, v) => a + (v ?? 0), 0);
+    };
+
+    const prev = sumComp(r => r.comparisons?.prevYearAnnual ?? null);
+    const curr = sumComp(r => r.comparisons?.currYearAnnual ?? null);
+    const plan = sumComp(r => r.comparisons?.annualPlan ?? null);
+    const yoy = prev != null && prev !== 0 && curr != null ? ((curr - prev) / Math.abs(prev)) * 100 : null;
+    const year2024 = rows3.reduce((a, r) => a + (r?.year2024Value ?? 0), 0);
+
+    const values: (number | null)[] = [prev, ...sumVals, curr, yoy];
+    const virtualRow = {
+      comparisons: { prevYearAnnual: prev, currYearAnnual: curr, annualYoY: yoy, annualPlan: plan },
+    } as unknown as TableRow;
+
+    return { values, year2024Value: year2024, virtualRow };
+  }, [filtered]);
+
+  const 운전자본Values = computedWC.values;
+  const year2024Value = computedWC.year2024Value; // 2024년(기말) — 2025년(기말) 전월대비용
   const 전월대비Values = useMemo(() => {
     const v = 운전자본Values;
     const out: (number | null)[] = [];
@@ -112,21 +144,18 @@ export default function CFWorkingCapitalTable({
   const displayRows = useMemo(() => {
     const result: { account: string; displayName: string; level: number; isGroup: boolean; values: (number | null)[]; children?: { account: string; displayName: string; values: (number | null)[] }[] }[] = [];
 
-    const wcRow = getRow('운전자본');
-    if (wcRow) {
-      result.push({
-        account: '운전자본',
-        displayName: '운전자본 합계',
-        level: 0,
-        isGroup: false,
-        values: buildRowValues(wcRow),
-        children: undefined,
-      });
-    }
+    result.push({
+      account: '운전자본',
+      displayName: '운전자본 합계',
+      level: 0,
+      isGroup: false,
+      values: computedWC.values,
+      children: undefined,
+    });
 
     result.push({
       account: '_전월대비',
-      displayName: '전월대비',
+      displayName: '전년대비',
       level: 0,
       isGroup: false,
       values: 전월대비Values,
@@ -179,12 +208,13 @@ export default function CFWorkingCapitalTable({
         children: [
           { account: '본사AP', displayName: '본사 AP', values: buildRowValues(getRow('본사AP')) },
           { account: '제품AP', displayName: '제품 AP', values: buildRowValues(getRow('제품AP')) },
+          { account: '미착품', displayName: '미착품', values: buildRowValues(getRow('미착품')) },
         ],
       });
     }
 
     return result;
-  }, [filtered, 전월대비Values]);
+  }, [filtered, 전월대비Values, computedWC]);
 
   const visibleRows = useMemo(() => {
     const list: { account: string; displayName: string; level: number; isGroup: boolean; values: (number | null)[]; isChild?: boolean }[] = [];
@@ -316,8 +346,25 @@ export default function CFWorkingCapitalTable({
                   </td>
                   {monthsCollapsed && hasPlan
                     ? (() => {
-                        const wcRow2 = filtered.find(r => r.account === row.account);
-                        const pv = buildPlanValues(wcRow2);
+                        const pv = is전월대비
+                          ? (() => {
+                              const comp = computedWC.virtualRow.comparisons;
+                              const prev = comp?.prevYearAnnual ?? null;
+                              const plan = comp?.annualPlan ?? null;
+                              const curr = comp?.currYearAnnual ?? null;
+                              return [
+                                전월대비Values[0],
+                                prev != null && plan != null ? plan - prev : null,
+                                null,
+                                prev != null && curr != null ? curr - prev : null,
+                                null, null, null,
+                              ];
+                            })()
+                          : buildPlanValues(
+                              row.account === '운전자본'
+                                ? computedWC.virtualRow
+                                : filtered.find(r => r.account === row.account)
+                            );
                         const bg = is합계 ? 'bg-yellow-50' : '';
                         return [
                           <td key="p0" className={`${cellClass(pv[0])} ${bg}`}>{formatCell(pv[0], 0)}</td>,
