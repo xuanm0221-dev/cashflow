@@ -7,6 +7,7 @@ const DATA_DIR = path.join(process.cwd(), 'data', 'inventory');
 const SNAPSHOT_FILE = path.join(DATA_DIR, 'snapshots.json');
 const ANNUAL_PLAN_FILE = path.join(DATA_DIR, 'annual-shipment-plan.json');
 const OTB_PLAN_FILE = path.join(DATA_DIR, 'otb-plan.json');
+const DEALER_ACC_SELLIN_FILE = path.join(DATA_DIR, 'dealer-acc-sellin.json');
 
 const DEFAULT_ANNUAL_PLAN = {
   '2026': {
@@ -79,6 +80,20 @@ export async function readOtbStore(): Promise<Record<string, Record<string, numb
 
 export async function writeOtbStore(store: Record<string, Record<string, number>>): Promise<void> {
   await writeJsonFile(OTB_PLAN_FILE, store);
+}
+
+const DEFAULT_DEALER_ACC_SELLIN: Record<string, number> = {
+  MLB: 0,
+  'MLB KIDS': 0,
+  DISCOVERY: 0,
+};
+
+export async function readDealerAccSellinStore(): Promise<Record<string, number>> {
+  return readJsonFile<Record<string, number>>(DEALER_ACC_SELLIN_FILE, DEFAULT_DEALER_ACC_SELLIN);
+}
+
+export async function writeDealerAccSellinStore(store: Record<string, number>): Promise<void> {
+  await writeJsonFile(DEALER_ACC_SELLIN_FILE, store);
 }
 
 export function snapshotStoreKey(year: number, brand: string): string {

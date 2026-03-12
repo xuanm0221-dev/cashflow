@@ -2,6 +2,7 @@
 // 대리상 OTB (Order To Buy) Snowflake 쿼리
 // chn.dw_pr + chn.dw_pr_scs 기반
 // ─────────────────────────────────────────────
+import { executeSnowflakeQuery } from './snowflake-client';
 
 export const OTB_BRANDS = ['MLB', 'MLB KIDS', 'DISCOVERY'] as const;
 export type OtbBrand = typeof OTB_BRANDS[number];
@@ -35,35 +36,6 @@ WHERE 1=1
   AND a.pr_type_nm_cn = '经销商采购申请 - 期货'
   AND b.parent_prdt_kind_nm_cn = '服装'
 `.trim();
-}
-
-async function executeSnowflakeQuery<T>(sql: string): Promise<T[]> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const snowflake = require('snowflake-sdk');
-
-  const conn = snowflake.createConnection({
-    account: process.env.SNOWFLAKE_ACCOUNT!,
-    username: process.env.SNOWFLAKE_USER!,
-    password: process.env.SNOWFLAKE_PASSWORD!,
-    warehouse: process.env.SNOWFLAKE_WAREHOUSE,
-    database: process.env.SNOWFLAKE_DATABASE,
-    schema: process.env.SNOWFLAKE_SCHEMA,
-    role: process.env.SNOWFLAKE_ROLE,
-  });
-
-  return new Promise<T[]>((resolve, reject) => {
-    conn.connect((connErr: Error | undefined) => {
-      if (connErr) { reject(connErr); return; }
-      conn.execute({
-        sqlText: sql,
-        complete: (execErr: Error | undefined, _stmt: unknown, rows: T[] | undefined) => {
-          conn.destroy(() => {});
-          if (execErr) { reject(execErr); return; }
-          resolve(rows ?? []);
-        },
-      });
-    });
-  });
 }
 
 /** MLB OTB 하드코딩 값 (CNY 단위, API 호출 없이 고정) */

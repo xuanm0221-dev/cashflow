@@ -691,29 +691,59 @@ export default function PLForecastTab() {
   }, [growthParams]);
 
   useEffect(() => {
-    const readDealerAccSellIn = () => {
-      if (typeof window === 'undefined') return;
-      const raw = window.localStorage.getItem(INVENTORY_DEALER_ACC_SELLIN_KEY);
-      if (!raw) return;
-      try {
-        const parsed = JSON.parse(raw) as DealerAccSellInPayload;
-        const values = parsed.values ?? {};
-        setDealerAccOtbByBrand({
-          MLB: (Number(values.MLB) || 0) * 1000,
-          'MLB KIDS': (Number(values['MLB KIDS']) || 0) * 1000,
-          DISCOVERY: (Number(values.DISCOVERY) || 0) * 1000,
-        });
-      } catch {
-        // ignore malformed localStorage payload
-      }
+    let mounted = true;
+
+    const applyValues = (values: Record<string, number>) => {
+      if (!mounted) return;
+      setDealerAccOtbByBrand({
+        MLB: (Number(values.MLB) || 0) * 1000,
+        'MLB KIDS': (Number(values['MLB KIDS']) || 0) * 1000,
+        DISCOVERY: (Number(values.DISCOVERY) || 0) * 1000,
+      });
     };
 
-    readDealerAccSellIn();
-    window.addEventListener('inventory-dealer-acc-sellin-updated', readDealerAccSellIn as EventListener);
-    window.addEventListener('storage', readDealerAccSellIn);
+    const readDealerAccSellIn = (payload?: unknown) => {
+      if (typeof window === 'undefined') return false;
+      const source = payload ?? window.localStorage.getItem(INVENTORY_DEALER_ACC_SELLIN_KEY);
+      if (!source) return false;
+      try {
+        const parsed = (typeof source === 'string' ? JSON.parse(source) : source) as DealerAccSellInPayload;
+        const values = parsed.values ?? {};
+        if (Object.values(values).some((v) => Number(v) > 0)) {
+          applyValues(values as Record<string, number>);
+          return true;
+        }
+      } catch {
+        // ignore malformed payload
+      }
+      return false;
+    };
+
+    const hasLocal = readDealerAccSellIn();
+    if (!hasLocal) {
+      // localStorage에 값 없으면 서버 파일에서 fallback 조회
+      fetch('/api/pl-forecast/dealer-acc-otb', { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((json: { values?: Record<string, number> }) => {
+          if (!mounted) return;
+          const values = json.values ?? {};
+          if (Object.values(values).some((v) => Number(v) > 0)) {
+            applyValues(values);
+          }
+        })
+        .catch(() => {});
+    }
+
+    const handleUpdate = (event: Event) => {
+      readDealerAccSellIn((event as CustomEvent).detail);
+    };
+
+    window.addEventListener('inventory-dealer-acc-sellin-updated', handleUpdate as EventListener);
+    window.addEventListener('storage', () => readDealerAccSellIn());
     return () => {
-      window.removeEventListener('inventory-dealer-acc-sellin-updated', readDealerAccSellIn as EventListener);
-      window.removeEventListener('storage', readDealerAccSellIn);
+      mounted = false;
+      window.removeEventListener('inventory-dealer-acc-sellin-updated', handleUpdate as EventListener);
+      window.removeEventListener('storage', () => readDealerAccSellIn());
     };
   }, []);
 

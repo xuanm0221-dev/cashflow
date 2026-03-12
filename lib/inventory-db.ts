@@ -6,6 +6,7 @@ import {
   DbClothingRow,
   DbAccRow,
 } from './inventory-monthly-types';
+import { executeSnowflakeQuery } from './snowflake-client';
 
 // ─────────────────────────────────────────────
 // 상수
@@ -326,39 +327,6 @@ WHERE parent_prdt_kind_nm IN ('ACC', 'UNMAPPED')
 GROUP BY 1, 2
 ORDER BY 1, 2
 `;
-}
-
-// ─────────────────────────────────────────────
-// Snowflake 실행 레이어
-// ─────────────────────────────────────────────
-
-async function executeSnowflakeQuery<T>(sql: string): Promise<T[]> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const snowflake = require('snowflake-sdk');
-
-  const conn = snowflake.createConnection({
-    account: process.env.SNOWFLAKE_ACCOUNT!,
-    username: process.env.SNOWFLAKE_USER!,
-    password: process.env.SNOWFLAKE_PASSWORD!,
-    warehouse: process.env.SNOWFLAKE_WAREHOUSE,
-    database: process.env.SNOWFLAKE_DATABASE,
-    schema: process.env.SNOWFLAKE_SCHEMA,
-    role: process.env.SNOWFLAKE_ROLE,
-  });
-
-  return new Promise<T[]>((resolve, reject) => {
-    conn.connect((connErr: Error | undefined) => {
-      if (connErr) { reject(connErr); return; }
-      conn.execute({
-        sqlText: sql,
-        complete: (execErr: Error | undefined, _stmt: unknown, rows: T[] | undefined) => {
-          conn.destroy(() => {});
-          if (execErr) { reject(execErr); return; }
-          resolve(rows ?? []);
-        },
-      });
-    });
-  });
 }
 
 // ─────────────────────────────────────────────

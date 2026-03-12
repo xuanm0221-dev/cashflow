@@ -565,6 +565,12 @@ export default function InventoryDashboard() {
     };
     localStorage.setItem('inventory_dealer_acc_sellin', JSON.stringify(payload));
     window.dispatchEvent(new CustomEvent('inventory-dealer-acc-sellin-updated', { detail: payload }));
+    // 서버 파일에도 저장 (다른 브라우저/기기에서도 접근 가능하도록)
+    fetch('/api/pl-forecast/dealer-acc-otb', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: nextMap }),
+    }).catch(() => {});
   }, []);
 
   const publishHqClosingByBrand = useCallback((partialMap: Partial<HqClosingByBrand>) => {
@@ -2307,34 +2313,26 @@ export default function InventoryDashboard() {
   }, [year, perBrandTopTable, perBrandPrevYearTableData, growthRateByBrand, growthRateHqByBrand]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || year !== 2026 || !dealerTableData) return;
-    if (brand !== 'MLB' && brand !== 'MLB KIDS' && brand !== 'DISCOVERY') return;
+    if (typeof window === 'undefined' || year !== 2026) return;
 
-    const accRow = dealerTableData.rows.find((r) => r.key === 'ACC합계');
-    if (!accRow) return;
-
-    const currentRaw = localStorage.getItem('inventory_dealer_acc_sellin');
-    let currentValues: Record<'MLB' | 'MLB KIDS' | 'DISCOVERY', number> = {
+    const nextValues: Record<'MLB' | 'MLB KIDS' | 'DISCOVERY', number> = {
       MLB: 0,
       'MLB KIDS': 0,
       DISCOVERY: 0,
     };
-    try {
-      const parsed = currentRaw ? JSON.parse(currentRaw) : null;
-      if (parsed?.values) {
-        currentValues = {
-          MLB: Number(parsed.values.MLB) || 0,
-          'MLB KIDS': Number(parsed.values['MLB KIDS']) || 0,
-          DISCOVERY: Number(parsed.values.DISCOVERY) || 0,
-        };
-      }
-    } catch {
-      // ignore parse errors and overwrite with fresh value below
+    let hasAny = false;
+    for (const b of ANNUAL_PLAN_BRANDS) {
+      const table = perBrandTopTable[b];
+      if (!table) continue;
+      const accRow = table.dealer.rows.find((r) => r.key === 'ACC합계');
+      if (!accRow) continue;
+      nextValues[b] = accRow.sellInTotal;
+      hasAny = true;
     }
+    if (!hasAny) return;
 
-    const nextValues = { ...currentValues, [brand]: accRow.sellInTotal };
     publishDealerAccSellIn(nextValues);
-  }, [year, brand, dealerTableData, publishDealerAccSellIn]);
+  }, [year, perBrandTopTable, publishDealerAccSellIn]);
 
   // 2026 YOY: 전년(2025) 테이블 구성 → 재고자산합계 sellIn/sellOut/hqSales 추출
   useEffect(() => {

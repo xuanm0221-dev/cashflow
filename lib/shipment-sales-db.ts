@@ -2,6 +2,7 @@ import { RetailSalesRow, RetailSalesTableData } from './retail-sales-types';
 import { normalizeSeasonKey, BRD_CD_MAP } from './inventory-db';
 import { yymmToDateRange } from './retail-sales-db';
 import type { MonthlySeasonKey, MonthlyAccKey } from './inventory-monthly-types';
+import { executeSnowflakeQuery } from './snowflake-client';
 
 // ─────────────────────────────────────────────
 // 상수
@@ -122,35 +123,6 @@ interface DbShipmentRow {
 // ─────────────────────────────────────────────
 // Snowflake 실행
 // ─────────────────────────────────────────────
-
-async function executeSnowflakeQuery<T>(sql: string): Promise<T[]> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const snowflake = require('snowflake-sdk');
-
-  const conn = snowflake.createConnection({
-    account: process.env.SNOWFLAKE_ACCOUNT!,
-    username: process.env.SNOWFLAKE_USER!,
-    password: process.env.SNOWFLAKE_PASSWORD!,
-    warehouse: process.env.SNOWFLAKE_WAREHOUSE,
-    database: process.env.SNOWFLAKE_DATABASE,
-    schema: process.env.SNOWFLAKE_SCHEMA,
-    role: process.env.SNOWFLAKE_ROLE,
-  });
-
-  return new Promise<T[]>((resolve, reject) => {
-    conn.connect((connErr: Error | undefined) => {
-      if (connErr) { reject(connErr); return; }
-      conn.execute({
-        sqlText: sql,
-        complete: (execErr: Error | undefined, _stmt: unknown, rows: T[] | undefined) => {
-          conn.destroy(() => {});
-          if (execErr) { reject(execErr); return; }
-          resolve(rows ?? []);
-        },
-      });
-    });
-  });
-}
 
 // ─────────────────────────────────────────────
 // 데이터 변환
