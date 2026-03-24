@@ -1719,6 +1719,36 @@ export default function PLForecastTab() {
     !!directExpenseRatioError ||
     !!tagCostRatioError;
 
+  const handleDownloadJson = () => {
+    const viewLabel = FORECAST_BRANDS.find((b) => b.id === activeBrand)?.label ?? '법인';
+    const rows = rowDefs.map((row) => {
+      const series = getRowSeries(row.account);
+      return {
+        account: row.account,
+        level: row.level,
+        isGroup: row.isGroup ?? false,
+        format: row.format,
+        annual2025: series.annual2025,
+        monthly: series.monthly,
+        annual2026: getAnnual26Value(row.account),
+      };
+    });
+    const data = {
+      view: viewLabel,
+      generatedAt: new Date().toISOString(),
+      unit: 'CNY K',
+      months: MONTH_HEADERS,
+      rows,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PL_FY26_${viewLabel}_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="h-[calc(100vh-64px)] overflow-auto bg-[radial-gradient(1200px_500px_at_10%_-20%,#e0e7ff_0%,transparent_55%),radial-gradient(900px_420px_at_100%_0%,#dbeafe_0%,transparent_45%),linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)]">
       <div className="sticky top-0 z-[60] border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md">
@@ -1793,7 +1823,14 @@ export default function PLForecastTab() {
               ※ 필수 방문순서: 재고자산(simu) 방문후 PL 참고해주세요
             </span>
 
-            <div className="ml-auto rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500 shadow-sm">
+            <button
+              type="button"
+              onClick={handleDownloadJson}
+              className="ml-auto flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100"
+            >
+              ↓ {FORECAST_BRANDS.find((b) => b.id === activeBrand)?.label ?? '법인'} JSON
+            </button>
+            <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500 shadow-sm">
               단위: CNY K
             </div>
           </div>
