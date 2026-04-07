@@ -4119,7 +4119,12 @@ export default function PLForecastTab() {
                                 <span className="font-semibold text-slate-800">매입채무(K)</span> = 연말기준 AP(K) × (V+해당시나리오 ÷ V+기존계획).
                               </p>
                               <p className="text-[10px] text-slate-600">
-                                <span className="font-semibold text-slate-800">재고자산(K)</span>: 재고자산(sim)에서 부정·기존계획·긍정 시나리오로 계산·저장한 결과.
+                                <span className="font-semibold text-slate-800">재고자산(K)</span>{' '}
+                                = (TAG_K ÷ 1.13) × 원가율 × (1 − 평가감율).{' '}
+                                TAG_K는 재고자산(sim)에서 시나리오별로 계산·저장한 브랜드별 기말 TAG 잔액.{' '}
+                                원가율 출처: <span className="font-mono text-[10px]">보조파일(simu)/Tag대비원가율.csv</span>.{' '}
+                                평가감율(고정): MLB 13.39% / MLB KIDS 27.68% / DISCOVERY 2.25%.{' '}
+                                <span className="text-slate-400">※ 브랜드 행에 마우스를 올리면 해당 시나리오의 TAG·원가율·평가감율 확인 가능.</span>
                               </p>
                             </div>
                           )}
