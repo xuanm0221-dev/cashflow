@@ -33,7 +33,7 @@ export default function CreditStatus({ data, creditRecoveryData = null }: Credit
     if (creditRecoveryData) return;
     if (selfFetchedRef.current) return;
     selfFetchedRef.current = true;
-    fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.02')
+    fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.03')
       .then((r) => (r.ok ? r.json() : null))
       .then((res: { data?: CreditRecoveryData } | null) => {
         if (res?.data) setCsvRecoveryData(res.data);

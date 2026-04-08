@@ -156,7 +156,7 @@ export default function PLCashFlowTab() {
   const [cashBorrowingData, setCashBorrowingData] = useState<CashBorrowingApiData>({ cash: [], borrowing: [] });
   const [cashBorrowingLoaded, setCashBorrowingLoaded] = useState(false);
   const [creditRecovery, setCreditRecovery] = useState<PLCreditRecoveryData>({
-    baseYearMonth: '26.02',
+    baseYearMonth: '26.03',
     dealerAdvance: 0,
     dealerReceivable: 0,
     recoveries: [],
@@ -279,7 +279,7 @@ export default function PLCashFlowTab() {
 
     const loadCreditRecovery = async () => {
       try {
-        const res = await fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.02', { cache: 'no-store' });
+        const res = await fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.03', { cache: 'no-store' });
         const json = await res.json();
         if (!mounted || !res.ok || !json?.data) return;
         const payload = json.data as Record<string, unknown>;
@@ -290,7 +290,7 @@ export default function PLCashFlowTab() {
           .map((value) => Number(value))
           .filter((value) => Number.isFinite(value));
         setCreditRecovery({
-          baseYearMonth: typeof payload.baseYearMonth === 'string' ? payload.baseYearMonth : '26.02',
+          baseYearMonth: typeof payload.baseYearMonth === 'string' ? payload.baseYearMonth : '26.03',
           dealerAdvance,
           dealerReceivable,
           recoveries,

@@ -429,7 +429,7 @@ export default function Home() {
     } else if (currentType === 'CREDIT') {
       if (!creditData) loadData('CREDIT');
       if (!creditRecoveryData) {
-        fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.02')
+        fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.03')
           .then((r) => (r.ok ? r.json() : null))
           .then((res: { data?: CreditRecoveryData } | null) => {
             if (res?.data) setCreditRecoveryData(res.data);
@@ -480,7 +480,7 @@ export default function Home() {
       ];
       if (cfYear === 2026) {
         fetches.push(makeCfFetch(fetch('/api/fs/bs?year=2026'), '재무상태표(2026)'));
-        fetches.push(makeCfFetch(fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.02'), '여신회수 데이터'));
+        fetches.push(makeCfFetch(fetch('/api/annual-plan/credit-recovery?baseYearMonth=26.03'), '여신회수 데이터'));
       }
       Promise.all(fetches)
         .then((results) => {
@@ -843,7 +843,7 @@ export default function Home() {
         {activeTab === 4 && (
           <div>
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3">
-              <span className="text-sm font-medium text-gray-700">2026년 2월 기준</span>
+              <span className="text-sm font-medium text-gray-700">2026년 3월 기준</span>
             </div>
             {loading && <div className="p-6 text-center">로딩 중...</div>}
             {error && <div className="p-6 text-center text-red-500">{error}</div>}

@@ -40,12 +40,12 @@ interface Props {
 }
 
 // 헤더 스타일
-const TH = 'px-2 py-2 text-center text-xs font-semibold bg-[#eef3f8] text-[#24334d] border border-[#d7e0ea] whitespace-nowrap';
+const TH = 'px-2 py-2 text-center text-xs font-semibold bg-[#b8d0e8] text-[#1a2f4a] border border-[#d7e0ea] whitespace-nowrap';
 
-// YOY 합성 행 (의류합계-당년F 사이)
+// YOY 합성 행
 const YOY_ROW_KEY = 'YOY';
 function isYoyRow(row: InventoryRow | YoyRow): row is YoyRow {
-  return row.key === YOY_ROW_KEY;
+  return (row as YoyRow).isYoy === true;
 }
 interface YoyRow {
   key: string;
@@ -54,6 +54,12 @@ interface YoyRow {
   isSubtotal: false;
   isLeaf: false;
   isYoy: true;
+  /** 소계 YOY 전용: 당년÷전년 비율. 없으면 grand total YOY 값 사용 */
+  yoyOpening?: number | null;
+  yoySellIn?: number | null;
+  yoySellOut?: number | null;
+  yoyHqSales?: number | null;
+  yoyClosing?: number | null;
 }
 const yoyRow: YoyRow = {
   key: YOY_ROW_KEY,
@@ -66,16 +72,20 @@ const yoyRow: YoyRow = {
 
 // 행 배경색
 function rowBg(row: InventoryRow | YoyRow): string {
-  if (isYoyRow(row)) return 'bg-[#edf5ff]';
-  if (row.isTotal) return 'bg-[#f3f8ff]';
-  if (row.isSubtotal) return 'bg-[#f8fafc]';
+  if (isYoyRow(row)) {
+    if (row.key === YOY_ROW_KEY) return 'bg-[#d6ecff]'; // grand total YOY → 하늘색 (Level 2)
+    return 'bg-[#f0f2f4]'; // subtotal YOY (의류·ACC합계) → 연한 회색 (Level 3)
+  }
+  if (row.isTotal) return 'bg-[#d6ecff]';    // 재고자산합계 → Level 2 하늘색
+  if (row.isSubtotal) return 'bg-[#f0f2f4]'; // 의류·ACC합계 → Level 3 회색
   return 'bg-white hover:bg-[#f9fbfd]';
 }
 
 // 셀 스타일
 function cellCls(row: InventoryRow | YoyRow, extra = ''): string {
   if (isYoyRow(row)) {
-    return 'px-2 py-1.5 text-right text-xs border-b border-[#e3eaf2] tabular-nums align-middle italic font-bold text-[#2a4674]';
+    const textColor = row.key === YOY_ROW_KEY ? 'text-[#2a4674]' : 'text-[#4a5568]';
+    return `px-2 py-1.5 text-right text-xs border-b border-[#e3eaf2] tabular-nums align-middle italic font-bold ${textColor}`;
   }
   const base = 'px-2 py-1.5 text-right text-xs border-b border-[#e3eaf2] tabular-nums align-middle';
   const weight = row.isTotal || row.isSubtotal ? 'font-semibold' : 'font-normal';
@@ -84,7 +94,8 @@ function cellCls(row: InventoryRow | YoyRow, extra = ''): string {
 
 function labelCls(row: InventoryRow | YoyRow): string {
   if (isYoyRow(row)) {
-    return 'py-1.5 text-xs border-b border-[#e3eaf2] whitespace-nowrap align-middle pl-2 pr-2 italic font-bold text-[#2a4674]';
+    const textColor = row.key === YOY_ROW_KEY ? 'text-[#2a4674]' : 'text-[#4a5568]';
+    return `py-1.5 text-xs border-b border-[#e3eaf2] whitespace-nowrap align-middle pl-2 pr-2 italic font-bold ${textColor}`;
   }
   const base = 'py-1.5 text-xs border-b border-[#e3eaf2] whitespace-nowrap align-middle';
   const weight = row.isTotal || row.isSubtotal ? 'font-semibold' : 'font-normal';
@@ -132,7 +143,10 @@ function isHqSellInBoxLast(row: InventoryRow | YoyRow): boolean {
 }
 function getHqSellInBoxClass(tableType: string | undefined, row: InventoryRow | YoyRow): string {
   if (tableType !== 'hq') return '';
-  if (isYoyRow(row)) return BOX_SINGLE;
+  if (isYoyRow(row)) {
+    if (row.key === 'YOY_ACC합계') return BOX_MIDDLE; // ACC YOY만 위아래 선 제거
+    return BOX_SINGLE; // 합계 YOY, 의류합계 YOY는 기존 유지
+  }
   if (isHqSellInBoxFirst(row)) return BOX_TOP;
   if (isHqSellInBoxMiddle(row)) return BOX_MIDDLE;
   if (isHqSellInBoxLast(row)) return BOX_BOTTOM;
@@ -153,6 +167,10 @@ function getDealerYoySellOutBoxClass(tableType: string | undefined, row: Invento
 /** 대리상·본사 ACC 재고주수 박스 (ACC합계~기타 하나의 박스) */
 function getAccWoiBoxClass(tableType: string | undefined, row: InventoryRow | YoyRow): string {
   if (tableType !== 'dealer' && tableType !== 'hq') return '';
+  if (isYoyRow(row)) {
+    if (row.key === 'YOY_ACC합계') return BOX_MIDDLE; // ACC YOY만 좌우 선 추가
+    return '';
+  }
   if (isHqSellInBoxFirst(row)) return BOX_TOP;
   if (isHqSellInBoxMiddle(row)) return BOX_MIDDLE;
   if (isHqSellInBoxLast(row)) return BOX_BOTTOM;
@@ -310,7 +328,7 @@ export default function InventoryTable({
               <th className={TH} style={{ width: '5%', minWidth: 50 }}>증감</th>
               <th className={TH} style={{ width: '5%', minWidth: 50 }}>Sell-through</th>
               <th className={TH} style={{ width: '5%', minWidth: 50 }}>
-                재고주수<br />
+                ST YOY /<br />재고주수<br />
                 <span className="font-normal text-[10px] text-slate-500">(목표)</span>
               </th>
             </tr>
@@ -321,6 +339,25 @@ export default function InventoryTable({
               for (const row of data.rows) {
                 displayRows.push(row);
                 if (row.key === '재고자산합계') displayRows.push(yoyRow);
+                if (row.isSubtotal && year === 2026) {
+                  const prevSub = prevYearByKey.get(row.key);
+                  if (prevSub) {
+                    displayRows.push({
+                      key: `YOY_${row.key}`,
+                      label: 'YOY',
+                      isTotal: false,
+                      isSubtotal: false,
+                      isLeaf: false,
+                      isYoy: true,
+                      yoyOpening: prevSub.opening > 0 ? row.opening / prevSub.opening : null,
+                      yoySellIn: prevSub.sellInTotal > 0 ? row.sellInTotal / prevSub.sellInTotal : null,
+                      yoySellOut: prevSub.sellOutTotal > 0 ? row.sellOutTotal / prevSub.sellOutTotal : null,
+                      yoyHqSales: (prevSub.hqSalesTotal ?? 0) > 0 && row.hqSalesTotal != null
+                        ? row.hqSalesTotal / prevSub.hqSalesTotal! : null,
+                      yoyClosing: prevSub.closing > 0 ? row.closing / prevSub.closing : null,
+                    });
+                  }
+                }
               }
               return displayRows;
             })().map((row) => (
@@ -328,19 +365,20 @@ export default function InventoryTable({
                 {/* 구분 */}
                 <td className={labelCls(row)}>
                   {!isYoyRow(row) && row.isLeaf && <span className="text-gray-400 mr-1">└</span>}
-                  {row.label}
+                  {row.label === '재고자산합계' ? '합계' : row.label}
                 </td>
                 {/* 기초 */}
                 <td className={cellCls(row)}>
                   {isYoyRow(row)
-                    ? yoyOpening != null
-                      ? formatPct(yoyOpening * 100)
-                      : '-'
+                    ? (() => {
+                        const v = 'yoyOpening' in row ? row.yoyOpening : yoyOpening;
+                        return v != null ? formatPct(v * 100) : '-';
+                      })()
                     : formatKValue(row.opening)}
                 </td>
                 {/* Sell-in (연간) — 2026 본사 leaf면 편집 가능 */}
                 <td className={`${cellCls(row)} ${getHqSellInBoxClass(tableType, row)} ${getDealerYoySellInBoxClass(tableType, row)}`}>
-                  {isYoyRow(row) ? (yoySellIn != null ? formatPct(yoySellIn * 100) : '-') : isHqSellEditableForRow(row as InventoryRow) && onHqSellInChange ? (
+                  {isYoyRow(row) ? (() => { const v = 'yoySellIn' in row ? row.yoySellIn : yoySellIn; return v != null ? formatPct(v * 100) : '-'; })() : isHqSellEditableForRow(row as InventoryRow) && onHqSellInChange ? (
                     <div
                       className={`${editableCellCls} ${editableCellBgCls}`}
                       onClick={() => !isEditing(row.key, 'sellIn') && startEdit(row, 'sellIn', row.sellInTotal || 0)}
@@ -371,7 +409,7 @@ export default function InventoryTable({
                 </td>
                 {/* Sell-out (연간) — 2026 본사 leaf면 편집 가능 */}
                 <td className={`${cellCls(row)} ${getDealerYoySellOutBoxClass(tableType, row)}`}>
-                  {isYoyRow(row) ? (yoySellOut != null ? formatPct(yoySellOut * 100) : '-') : isHqSellEditableForRow(row as InventoryRow) && onHqSellOutChange ? (
+                  {isYoyRow(row) ? (() => { const v = 'yoySellOut' in row ? row.yoySellOut : yoySellOut; return v != null ? formatPct(v * 100) : '-'; })() : isHqSellEditableForRow(row as InventoryRow) && onHqSellOutChange ? (
                     <div
                       className={`${editableCellCls} ${editableCellBgCls}`}
                       onClick={() => !isEditing(row.key, 'sellOut') && startEdit(row, 'sellOut', row.sellOutTotal || 0)}
@@ -404,37 +442,65 @@ export default function InventoryTable({
                 {tableType === 'hq' && (
                   <td className={cellCls(row)}>
                     {isYoyRow(row)
-                      ? yoyHqSales != null ? formatPct(yoyHqSales * 100) : '-'
+                      ? (() => { const v = 'yoyHqSales' in row ? row.yoyHqSales : yoyHqSales; return v != null ? formatPct(v * 100) : '-'; })()
                       : (row as InventoryRow).hqSalesTotal != null ? formatKValue((row as InventoryRow).hqSalesTotal!) : '-'}
                   </td>
                 )}
                 {/* 기말 */}
                 <td className={`${cellCls(row)} ${isHqImportantClosingCell(tableType, row) ? BOX_SINGLE : ''}`}>
                   {isYoyRow(row)
-                    ? yoyClosing != null
-                      ? formatPct(yoyClosing * 100)
-                      : '-'
+                    ? (() => { const v = 'yoyClosing' in row ? row.yoyClosing : yoyClosing; return v != null ? formatPct(v * 100) : '-'; })()
                     : formatKValue((row as InventoryRow).closing)}
                 </td>
                 {/* 증감 */}
                 <td className={`${cellCls(row)} ${!isYoyRow(row) && getDisplayDelta(row as InventoryRow) < 0 ? 'text-black' : !isYoyRow(row) && getDisplayDelta(row as InventoryRow) > 0 ? 'text-red-500' : ''}`}>
                   {isYoyRow(row) ? '-' : (getDisplayDelta(row as InventoryRow) > 0 ? '+' : '') + formatKValue(getDisplayDelta(row as InventoryRow))}
                 </td>
-                {/* Sell-through */}
-                <td className={`${cellCls(row)} ${
-                  isYoyRow(row) ? '' :
-                  (row as InventoryRow).sellThrough >= 70 ? 'text-green-600' :
-                  (row as InventoryRow).sellThrough >= 50 ? 'text-yellow-600' :
-                  (row as InventoryRow).sellThrough > 0 ? 'text-red-500' : ''
-                }`}>
-                  {isYoyRow(row) ? '-' : formatPct((row as InventoryRow).sellThrough)}
-                </td>
-                {/* 재고주수 (2026년 ACC 리프 행 편집 가능, 본사판매용 패턴. 의류 하위는 미표시) */}
-                <td
-                  className={`${cellCls(row)} ${getAccWoiBoxClass(tableType, row)} text-black ${isWoiEditableForRow(row as InventoryRow) ? `group cursor-text ${editableCellBgCls}` : ''}`}
-                  onClick={isWoiEditableForRow(row as InventoryRow) ? () => !isEditing(row.key, 'woi') && startEdit(row as InventoryRow, 'woi', (row as InventoryRow).woi || 0) : undefined}
-                >
-                  {isYoyRow(row) ? '-' : isClothingLeafRow(row) ? '' : isWoiEditableForRow(row as InventoryRow) ? (
+                {/* Sell-through: ACC합계·ACC leaf는 미표시 */}
+                {(() => {
+                  const isAccRelatedRow = !isYoyRow(row) && HQ_ACC_KEYS_FOR_HIGHLIGHT.includes((row as InventoryRow).key as typeof HQ_ACC_KEYS_FOR_HIGHLIGHT[number]);
+                  return (
+                    <td className={`${cellCls(row)} ${
+                      isYoyRow(row) || isAccRelatedRow ? '' :
+                      (row as InventoryRow).sellThrough >= 70 ? 'text-green-600' :
+                      (row as InventoryRow).sellThrough >= 50 ? 'text-yellow-600' :
+                      (row as InventoryRow).sellThrough > 0 ? 'text-red-500' : ''
+                    }`}>
+                      {isYoyRow(row) || isAccRelatedRow ? '' : formatPct((row as InventoryRow).sellThrough)}
+                    </td>
+                  );
+                })()}
+                {/* 재고주수(ACC·합계) / ST YOY(의류합계·의류leaf) */}
+                {(() => {
+                  const isClothingSubtotalRow = !isYoyRow(row) && !!(row as InventoryRow).isSubtotal && !ACC_KEYS.includes((row as InventoryRow).key as AccKey);
+                  const isClothingDisplayRow = isClothingLeafRow(row) || isClothingSubtotalRow;
+                  // 의류 행: ST YOY 표시
+                  if (!isYoyRow(row) && isClothingDisplayRow) {
+                    const prevRow = prevYearByKey.get((row as InventoryRow).key);
+                    const prevST = prevRow?.sellThrough ?? null;
+                    const currST = (row as InventoryRow).sellThrough;
+                    let content: React.ReactNode = '';
+                    if (prevST != null) {
+                      const diff = currST - prevST;
+                      const sign = diff >= 0 ? '+' : '';
+                      content = (
+                        <span className={diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : ''}>
+                          {sign}{diff.toFixed(1)}%
+                        </span>
+                      );
+                    }
+                    return (
+                      <td className={`${cellCls(row)} ${getAccWoiBoxClass(tableType, row)} text-right`}>
+                        {content}
+                      </td>
+                    );
+                  }
+                  return (
+                    <td
+                      className={`${cellCls(row)} ${getAccWoiBoxClass(tableType, row)} text-black ${isWoiEditableForRow(row as InventoryRow) ? `group cursor-text ${editableCellBgCls}` : ''}`}
+                      onClick={isWoiEditableForRow(row as InventoryRow) ? () => !isEditing(row.key, 'woi') && startEdit(row as InventoryRow, 'woi', (row as InventoryRow).woi || 0) : undefined}
+                    >
+                  {isYoyRow(row) ? '-' : isWoiEditableForRow(row as InventoryRow) ? (
                     isEditing(row.key, 'woi') ? (
                       <input
                         ref={inputRef}
@@ -453,7 +519,9 @@ export default function InventoryTable({
                   ) : (
                     formatWoi(row.woi)
                   )}
-                </td>
+                    </td>
+                  );
+                })()}
               </tr>
             ))}
           </tbody>

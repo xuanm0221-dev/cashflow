@@ -56,6 +56,12 @@ export async function GET(request: NextRequest) {
       headers.push(headers_row[i] || `회수${i - 1}`);
     }
     
+    // 뒤쪽 연속된 0 제거 (예: 7~8월이 0이면 6월까지만 표시)
+    while (recoveries.length > 0 && recoveries[recoveries.length - 1] === 0) {
+      recoveries.pop();
+      headers.pop();
+    }
+
     const creditRecoveryData: CreditRecoveryData = {
       baseYearMonth,
       대리상선수금,
