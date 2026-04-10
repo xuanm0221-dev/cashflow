@@ -14,7 +14,7 @@ import {
   hqTotalClosingAfterDisplay,
   retailAnnualTotalsByRowKey,
 } from '@/lib/inventory-top-table-pipeline';
-import { SCENARIO_DEFS, SCENARIO_ORDER, type ScenarioKey, type SalesBrand } from '@/components/pl-forecast/plForecastConfig';
+import { SCENARIO_DEFS, SCENARIO_ORDER, computeEffectiveGrowthRates, type ScenarioKey, type SalesBrand } from '@/components/pl-forecast/plForecastConfig';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -496,13 +496,22 @@ export default function InventoryDashboard() {
   const [year, setYear] = useState<number>(2026);
   const brand = '전체' as Brand;
   const [growthRateByBrand, setGrowthRateByBrand] = useState<Record<AnnualPlanBrand, number>>({
-    MLB: 5, 'MLB KIDS': -3, DISCOVERY: 280,
+    MLB: 5, 'MLB KIDS': -3, DISCOVERY: 300,
   });
   const [growthRateHqByBrand, setGrowthRateHqByBrand] = useState<Record<AnnualPlanBrand, number>>({
-    MLB: 15, 'MLB KIDS': 8, DISCOVERY: 137,
+    MLB: 15, 'MLB KIDS': 8, DISCOVERY: 100,
   });
   const growthRate = growthRateByBrand['MLB'] ?? 5;
   const growthRateHq = growthRateHqByBrand['MLB'] ?? 17;
+
+  // 재고자산 리테일 성장률(base)에서 부정/긍정 오프셋을 적용한 동적 시나리오 성장률
+  const effectiveScenarioGrowthRates = useMemo(
+    () => computeEffectiveGrowthRates(
+      growthRateByBrand as Record<SalesBrand, number>,
+      growthRateHqByBrand as Record<SalesBrand, number>,
+    ),
+    [growthRateByBrand, growthRateHqByBrand],
+  );
 
   const publishDealerAccSellIn = useCallback((nextMap: Record<'MLB' | 'MLB KIDS' | 'DISCOVERY', number>) => {
     if (typeof window === 'undefined') return;
@@ -1909,6 +1918,9 @@ export default function InventoryDashboard() {
     const allClosing: Record<ScenarioKey, Partial<Record<SalesBrand, number>>> = {
       negative: {}, base: {}, positive: {},
     };
+    const allRetailHqMonthly: Record<ScenarioKey, Partial<Record<SalesBrand, (number | null)[]>>> = {
+      negative: {}, base: {}, positive: {},
+    };
 
     for (const scKey of SCENARIO_ORDER) {
       setScenarioInvStatus((prev) => ({ ...prev, [scKey]: 'computing' }));
@@ -1927,17 +1939,24 @@ export default function InventoryDashboard() {
               rData = retailDataByBrand[b] ?? null;
             }
             if (!rData) {
+              const rates = effectiveScenarioGrowthRates[scKey];
               const params = new URLSearchParams({
                 year: '2026',
                 brand: b,
-                growthRate: String(def.dealerGrowthRate[b]),
-                growthRateHq: String(def.hqGrowthRate[b]),
+                growthRate: String(rates.dealer[b as SalesBrand]),
+                growthRateHq: String(rates.hq[b as SalesBrand]),
               });
               const res = await fetch(`/api/inventory/retail-sales?${params}`, { cache: 'no-store' });
               if (!res.ok) return;
               const json = (await res.json()) as RetailSalesResponse & { error?: string };
               if ((json as { error?: string }).error) return;
               rData = json;
+            }
+
+            // 본사 리테일 판매 월별 데이터 추출 → PL(sim) 시나리오에서 사용
+            const hqTotalRow = rData.hq?.rows?.find((r) => r.isTotal);
+            if (hqTotalRow?.monthly) {
+              allRetailHqMonthly[scKey][b as SalesBrand] = hqTotalRow.monthly;
             }
 
             const otbDealerSellIn = otbToDealerSellInPlan(otbData, b);
@@ -1967,23 +1986,25 @@ export default function InventoryDashboard() {
 
     setScenarioInvClosing(allClosing);
 
-    // 버전 해시 (성장률 기반)
+    // 버전 해시 (동적 성장률 기반)
     const version = SCENARIO_ORDER.map((k) => {
-      const d = SCENARIO_DEFS[k];
-      return `${k}:d${ANNUAL_PLAN_BRANDS.map((b) => d.dealerGrowthRate[b]).join(',')}-h${ANNUAL_PLAN_BRANDS.map((b) => d.hqGrowthRate[b]).join(',')}`;
+      const rates = effectiveScenarioGrowthRates[k];
+      return `${k}:d${ANNUAL_PLAN_BRANDS.map((b) => rates.dealer[b as SalesBrand]).join(',')}-h${ANNUAL_PLAN_BRANDS.map((b) => rates.hq[b as SalesBrand]).join(',')}`;
     }).join('|');
 
     const savedAt = new Date().toISOString();
     setScenarioInvSavedAt(savedAt);
 
     // 로컬에서만 JSON 파일로 저장 (Vercel에서는 403 반환 → 무시)
+    // retailHqMonthly: PL(sim) 시나리오가 확정된 본사리테일 판매를 사용하도록 함께 저장
     await fetch('/api/inventory/scenario-inventory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ closing: allClosing, savedAt, version }),
+      body: JSON.stringify({ closing: allClosing, retailHqMonthly: allRetailHqMonthly, savedAt, version }),
     }).catch(() => {});
   }, [allBrandsBgLoaded, year, monthlyDataByBrand, retailDataByBrand, shipmentDataByBrand, purchaseDataByBrand,
-      accTargetWoiDealer, accTargetWoiHq, accHqHoldingWoi, otbData, hqSellOutPlan, annualShipmentPlan2026]);
+      accTargetWoiDealer, accTargetWoiHq, accHqHoldingWoi, otbData, hqSellOutPlan, annualShipmentPlan2026,
+      effectiveScenarioGrowthRates]);
 
   // 브랜드별 당년 top table (buildBrand2026TopTable 이후에 배치)
   const perBrandTopTable = useMemo<Partial<Record<AnnualPlanBrand, TopTablePair>>>(() => {

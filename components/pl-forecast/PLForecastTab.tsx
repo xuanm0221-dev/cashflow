@@ -14,6 +14,7 @@ import {
   ROWS_CORPORATE,
   SCENARIO_DEFS,
   SCENARIO_ORDER,
+  computeEffectiveGrowthRates,
   type ForecastLeafBrand,
   type ForecastRowDef,
   type SalesBrand,
@@ -778,8 +779,8 @@ function distributeRemainingByPattern(
 const DEFAULT_GROWTH_PARAMS: InventoryGrowthParams = {
   growthRate: 5,
   growthRateHq: 17,
-  growthRateByBrand: { MLB: 5, 'MLB KIDS': -1, DISCOVERY: 200 },
-  growthRateHqByBrand: { MLB: 17, 'MLB KIDS': 0, DISCOVERY: 200 },
+  growthRateByBrand: { MLB: 5, 'MLB KIDS': -3, DISCOVERY: 300 },
+  growthRateHqByBrand: { MLB: 15, 'MLB KIDS': 8, DISCOVERY: 100 },
 };
 
 function readInventoryGrowthParams(): InventoryGrowthParams {
@@ -794,13 +795,13 @@ function readInventoryGrowthParams(): InventoryGrowthParams {
     const rawHqByBrand = parsed.growthRateHqByBrand as Record<string, number> | undefined;
     const growthRateByBrand: Record<SalesBrand, number> = {
       MLB: typeof rawByBrand?.MLB === 'number' ? rawByBrand.MLB : 5,
-      'MLB KIDS': typeof rawByBrand?.['MLB KIDS'] === 'number' ? rawByBrand['MLB KIDS'] : -1,
-      DISCOVERY: typeof rawByBrand?.DISCOVERY === 'number' ? rawByBrand.DISCOVERY : 200,
+      'MLB KIDS': typeof rawByBrand?.['MLB KIDS'] === 'number' ? rawByBrand['MLB KIDS'] : -3,
+      DISCOVERY: typeof rawByBrand?.DISCOVERY === 'number' ? rawByBrand.DISCOVERY : 300,
     };
     const growthRateHqByBrand: Record<SalesBrand, number> = {
-      MLB: typeof rawHqByBrand?.MLB === 'number' ? rawHqByBrand.MLB : 17,
-      'MLB KIDS': typeof rawHqByBrand?.['MLB KIDS'] === 'number' ? rawHqByBrand['MLB KIDS'] : 0,
-      DISCOVERY: typeof rawHqByBrand?.DISCOVERY === 'number' ? rawHqByBrand.DISCOVERY : 200,
+      MLB: typeof rawHqByBrand?.MLB === 'number' ? rawHqByBrand.MLB : 15,
+      'MLB KIDS': typeof rawHqByBrand?.['MLB KIDS'] === 'number' ? rawHqByBrand['MLB KIDS'] : 8,
+      DISCOVERY: typeof rawHqByBrand?.DISCOVERY === 'number' ? rawHqByBrand.DISCOVERY : 100,
     };
     return { growthRate, growthRateHq, growthRateByBrand, growthRateHqByBrand };
   } catch {
@@ -823,6 +824,13 @@ export default function PLForecastTab() {
   const [retailLoading, setRetailLoading] = useState<boolean>(false);
   const [retailError, setRetailError] = useState<string | null>(null);
   const [growthParams, setGrowthParams] = useState<InventoryGrowthParams>(DEFAULT_GROWTH_PARAMS);
+
+  // 재고자산(sim) 리테일 성장률(base)에서 부정/긍정 오프셋을 적용한 동적 시나리오 성장률
+  const effectiveScenarioGrowthRates = useMemo(
+    () => computeEffectiveGrowthRates(growthParams.growthRateByBrand, growthParams.growthRateHqByBrand),
+    [growthParams],
+  );
+
   const [directRetailByBrand, setDirectRetailByBrand] = useState<Record<SalesBrand, (number | null)[]>>({
     MLB: new Array(12).fill(null),
     'MLB KIDS': new Array(12).fill(null),
@@ -2386,14 +2394,14 @@ export default function PLForecastTab() {
       growthRates: {
         description: `${def.label} 시나리오 적용 성장률 (FY26 전년대비)`,
         dealer: {
-          MLB: fmtG(def.dealerGrowthRate.MLB),
-          'MLB KIDS': fmtG(def.dealerGrowthRate['MLB KIDS']),
-          DISCOVERY: fmtG(def.dealerGrowthRate.DISCOVERY),
+          MLB: fmtG(effectiveScenarioGrowthRates[scKey].dealer.MLB),
+          'MLB KIDS': fmtG(effectiveScenarioGrowthRates[scKey].dealer['MLB KIDS']),
+          DISCOVERY: fmtG(effectiveScenarioGrowthRates[scKey].dealer.DISCOVERY),
         },
         hq: {
-          MLB: fmtG(def.hqGrowthRate.MLB),
-          'MLB KIDS': fmtG(def.hqGrowthRate['MLB KIDS']),
-          DISCOVERY: fmtG(def.hqGrowthRate.DISCOVERY),
+          MLB: fmtG(effectiveScenarioGrowthRates[scKey].hq.MLB),
+          'MLB KIDS': fmtG(effectiveScenarioGrowthRates[scKey].hq['MLB KIDS']),
+          DISCOVERY: fmtG(effectiveScenarioGrowthRates[scKey].hq.DISCOVERY),
         },
       },
       generatedAt: new Date().toISOString(),
@@ -2429,39 +2437,27 @@ export default function PLForecastTab() {
     setScenarioModalBrand(null);
 
     try {
-      const fetchRetail = async (brand: SalesBrand, scKey: ScenarioKey): Promise<(number | null)[]> => {
-        const def = SCENARIO_DEFS[scKey];
-        const params = new URLSearchParams({
-          year: '2026',
-          brand,
-          growthRate: String(def.dealerGrowthRate[brand]),
-          growthRateHq: String(def.hqGrowthRate[brand]),
-        });
-        const res = await fetch(`/api/inventory/retail-sales?${params}`, { cache: 'no-store' });
-        const json = (await res.json()) as RetailSalesApiResponse & { error?: string };
-        if (!res.ok) throw new Error(json?.error || `${brand} ${def.label} 리테일 매출 로드 실패`);
-        const totalRow = json?.hq?.rows?.find((r) => r.isTotal);
-        return totalRow?.monthly ?? (new Array(12).fill(null) as (number | null)[]);
-      };
-
-      // 9개 병렬 API 호출 (3 시나리오 × 3 브랜드)
-      const allResults = await Promise.all(
-        SCENARIO_ORDER.flatMap((scKey) =>
-          SALES_BRANDS.map(async (brand) => ({
-            scKey,
-            brand,
-            monthly: await fetchRetail(brand, scKey),
-          })),
-        ),
-      );
-
+      // 재고자산(sim)에서 "재계산/저장"으로 확정한 본사리테일 판매 데이터 읽기
       const scenarioRetail: Record<ScenarioKey, Record<SalesBrand, (number | null)[]>> = {
         base: { MLB: [], 'MLB KIDS': [], DISCOVERY: [] },
         positive: { MLB: [], 'MLB KIDS': [], DISCOVERY: [] },
         negative: { MLB: [], 'MLB KIDS': [], DISCOVERY: [] },
       };
-      for (const { scKey, brand, monthly } of allResults) {
-        scenarioRetail[scKey][brand] = monthly;
+
+      const invRes = await fetch('/api/inventory/scenario-inventory', { cache: 'no-store' });
+      if (!invRes.ok) throw new Error('재고자산(sim) 시나리오 데이터가 없습니다. 재고자산(sim) 탭에서 "재계산/저장"을 먼저 실행해주세요.');
+      const invJson = await invRes.json() as {
+        retailHqMonthly?: Record<string, Record<string, (number | null)[]>>;
+        closing?: Record<string, Record<string, number>>;
+        error?: string;
+      };
+      if (invJson.error) throw new Error(invJson.error);
+      if (!invJson.retailHqMonthly) throw new Error('시나리오 본사리테일 데이터가 없습니다. 재고자산(sim) 탭에서 "재계산/저장"을 다시 실행해주세요.');
+
+      for (const scKey of SCENARIO_ORDER) {
+        for (const brand of SALES_BRANDS) {
+          scenarioRetail[scKey][brand] = invJson.retailHqMonthly[scKey]?.[brand] ?? new Array(12).fill(null);
+        }
       }
 
       // 대리상 ACC 연간: PL(sim) 메인·재고자산(sim)과 동일하게 dealerAccOtbByBrand 사용.
@@ -3585,10 +3581,10 @@ export default function PLForecastTab() {
                           <tr key={brand}>
                             <td className="py-0.5 pr-2 font-semibold text-slate-700">{brand}</td>
                             <td className="py-0.5 text-center font-mono text-slate-700">
-                              {100 + def.dealerGrowthRate[brand]}%
+                              {100 + effectiveScenarioGrowthRates[scKey].dealer[brand]}%
                             </td>
                             <td className="py-0.5 text-center font-mono text-slate-700">
-                              {100 + def.hqGrowthRate[brand]}%
+                              {100 + effectiveScenarioGrowthRates[scKey].hq[brand]}%
                             </td>
                           </tr>
                         ))}

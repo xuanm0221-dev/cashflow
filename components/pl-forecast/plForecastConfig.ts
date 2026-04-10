@@ -165,6 +165,37 @@ export const SCENARIO_DEFS: Record<ScenarioKey, ScenarioDef> = {
 
 export const SCENARIO_ORDER: ScenarioKey[] = ['negative', 'base', 'positive'];
 
+/**
+ * 부정/긍정 시나리오의 기존계획 대비 성장률 오프셋 (dealer·hq 동일 적용)
+ * MLB: ±5%, MLB KIDS: ±5%, DISCOVERY: ±50%
+ */
+export const BRAND_GROWTH_OFFSET: Record<SalesBrand, number> = {
+  MLB: 5,
+  'MLB KIDS': 5,
+  DISCOVERY: 50,
+};
+
+/**
+ * 재고자산(sim)의 리테일 성장률을 기준(base)으로 삼아
+ * 부정(−offset) / 기존(±0) / 긍정(+offset) 성장률을 동적으로 계산한다.
+ */
+export function computeEffectiveGrowthRates(
+  baseDealer: Record<SalesBrand, number>,
+  baseHq: Record<SalesBrand, number>,
+): Record<ScenarioKey, { dealer: Record<SalesBrand, number>; hq: Record<SalesBrand, number> }> {
+  const brands: SalesBrand[] = ['MLB', 'MLB KIDS', 'DISCOVERY'];
+  const sign: Record<ScenarioKey, number> = { negative: -1, base: 0, positive: 1 };
+  const result = {} as Record<ScenarioKey, { dealer: Record<SalesBrand, number>; hq: Record<SalesBrand, number> }>;
+  for (const scKey of SCENARIO_ORDER) {
+    const s = sign[scKey];
+    result[scKey] = {
+      dealer: Object.fromEntries(brands.map((b) => [b, baseDealer[b] + s * BRAND_GROWTH_OFFSET[b]])) as Record<SalesBrand, number>,
+      hq: Object.fromEntries(brands.map((b) => [b, baseHq[b] + s * BRAND_GROWTH_OFFSET[b]])) as Record<SalesBrand, number>,
+    };
+  }
+  return result;
+}
+
 export const ANNUAL_2025_RAW_BY_BRAND: Record<ForecastLeafBrand, Record<string, number>> = {
   mlb: {
     'Tag매출': 10620280950,
